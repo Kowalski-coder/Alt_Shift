@@ -1,0 +1,11 @@
+{
+  "name": "Wayland OSK Fix",
+  "author": "Kowalski",
+  "version": "1.0.0",
+  "flags": ["root"],
+  "publish": {
+    "tags": ["utility", "keyboard", "wayland", "cachyos", "steamos"],
+    "description": "Исправляет ввод русских символов и смену раскладки на экранной клавиатуре Steam в Wayland и Game Mode.",
+    "image": "https://raw.githubusercontent.com/SteamDeckHomebrew/decky-plugin-template/main/assets/preview.png"
+  }
+}

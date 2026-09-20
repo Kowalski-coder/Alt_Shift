@@ -1,0 +1,26 @@
+{
+  "name": "wayland-osk-fix",
+  "version": "1.0.0",
+  "description": "Fixes Steam On-Screen Keyboard input on Wayland and Game Mode",
+  "scripts": {
+    "build": "shx rm -rf dist && rollup -c && node -e \"const fs = require('fs'); let c = fs.readFileSync('dist/index.js', 'utf8'); if (c.startsWith('var ')) { fs.writeFileSync('dist/index.js', c.replace(/^var \\w+ =\\s*/, '')); }\"",
+    "watch": "rollup -c -w"
+  },
+  "author": "Kowalski",
+  "license": "BSD-3-Clause",
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^21.1.0",
+    "@rollup/plugin-json": "^4.1.0",
+    "@rollup/plugin-node-resolve": "^13.3.0",
+    "@rollup/plugin-replace": "^4.0.0",
+    "@rollup/plugin-typescript": "^8.5.0",
+    "@types/node": "^18.19.41",
+    "@types/react": "16.14.0",
+    "decky-frontend-lib": "^3.25.0",
+    "react-icons": "^5.7.0",
+    "rollup": "^2.79.1",
+    "shx": "^0.3.4",
+    "tslib": "^2.6.3",
+    "typescript": "^4.9.5"
+  }
+}
