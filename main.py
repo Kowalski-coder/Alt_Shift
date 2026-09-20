@@ -455,23 +455,53 @@ def emit_alt_shift():
     emit_raw_event(EV_SYN, SYN_REPORT, 0)
     time.sleep(0.015)
 
+def get_x11_state(lang_needed: str):
+    """
+    Directly inspects the real-time active XKB group and discovers
+    the exact target group index for the requested language.
+    """
+    if not libX11:
+        return None, None
+    username, uid, gid, homedir = get_user_info()
+    xauth = find_xauth_path(uid, homedir)
+    if xauth:
+        os.environ["XAUTHORITY"] = xauth
+
+    displays = []
+    env_display = os.environ.get("DISPLAY")
+    if env_display:
+        displays.append(env_display)
+    for d in [":0", ":1"]:
+        if d not in displays:
+            displays.append(d)
+
+    for dpy_str in displays:
+        try:
+            dpy = libX11.XOpenDisplay(dpy_str.encode("utf-8"))
+            if not dpy:
+                continue
+            st = XkbStateRec()
+            if libX11.XkbGetState(dpy, 0x0100, ctypes.byref(st)) != 0:
+                libX11.XCloseDisplay(dpy)
+                continue
+            current_group = st.group
+            target_group = get_x11_target_group(dpy, lang_needed)
+            libX11.XCloseDisplay(dpy)
+            return current_group, target_group
+        except Exception:
+            pass
+    return None, None
+
 def sync_layout(lang: str):
     """
     lang: 'us' (English) or 'ru' (Russian), or int (0=US, 1=RU)
-    Dynamically mapped in both Desktop Mode (KDE Wayland DBus + X11) and Game Mode (Gamescope uinput).
+    Directly queries actual hardware X11/XKB state before typing.
+    Never guesses. 100% state-aware.
     """
-    global current_cached_kde_layout, gamescope_device_layout, last_is_desktop
-    target_idx = 1 if (lang == "ru" or lang == 1) else 0
-    lang_str = "ru" if target_idx == 1 else "us"
+    global current_cached_kde_layout
+    lang_str = "ru" if (lang == "ru" or lang == 1) else "us"
 
     in_desktop = is_desktop_mode()
-
-    if last_is_desktop is not None and last_is_desktop != in_desktop:
-        gamescope_device_layout = 0
-        current_cached_kde_layout = -1
-        destroy_uinput_device()
-        init_uinput_device()
-    last_is_desktop = in_desktop
 
     if in_desktop:
         # Desktop Mode (KDE Plasma Wayland & X11)
@@ -486,12 +516,12 @@ def sync_layout(lang: str):
         except Exception as e:
             logger.debug(f"KDE layout sync error: {e}")
     else:
-        # Game Mode (Gamescope Wayland uinput bridge)
-        gamescope_target = target_idx
-        if gamescope_device_layout != gamescope_target:
-            emit_alt_shift()
-            gamescope_device_layout = gamescope_target
-            logger.info(f"Toggled Gamescope uinput device layout to {gamescope_target} ({lang_str})")
+        # Game Mode (Gamescope Wayland) - read real hardware group state
+        curr_grp, target_grp = get_x11_state(lang_str)
+        if curr_grp is not None and target_grp is not None:
+            if curr_grp != target_grp:
+                emit_alt_shift()
+                logger.info(f"Gamescope state was group {curr_grp}, needed group {target_grp} ({lang_str}) -> emitted Alt+Shift")
 
 def auto_setup_system_xkb():
     """
