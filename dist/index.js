@@ -65,6 +65,52 @@
     return GenIcon({"tag":"svg","attr":{"viewBox":"0 0 576 512"},"child":[{"tag":"path","attr":{"d":"M528 448H48c-26.51 0-48-21.49-48-48V112c0-26.51 21.49-48 48-48h480c26.51 0 48 21.49 48 48v288c0 26.51-21.49 48-48 48zM128 180v-40c0-6.627-5.373-12-12-12H76c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm96 0v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm96 0v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm96 0v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm96 0v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm-336 96v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm96 0v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm96 0v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm96 0v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm-336 96v-40c0-6.627-5.373-12-12-12H76c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm288 0v-40c0-6.627-5.373-12-12-12H172c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h232c6.627 0 12-5.373 12-12zm96 0v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12z"},"child":[]}]})(props);
   }
 
+  function findActiveInput() {
+      function searchDoc(doc) {
+          try {
+              let active = doc.activeElement;
+              while (active) {
+                  if (active.shadowRoot && active.shadowRoot.activeElement) {
+                      active = active.shadowRoot.activeElement;
+                  }
+                  else if (active.tagName === "IFRAME") {
+                      try {
+                          const frameDoc = active.contentDocument;
+                          if (frameDoc && frameDoc.activeElement) {
+                              active = frameDoc.activeElement;
+                          }
+                          else {
+                              break;
+                          }
+                      }
+                      catch (e) {
+                          break;
+                      }
+                  }
+                  else {
+                      break;
+                  }
+              }
+              if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) {
+                  return active;
+              }
+          }
+          catch (e) { }
+          return null;
+      }
+      let el = searchDoc(document);
+      if (el)
+          return el;
+      try {
+          if (window.top && window.top !== window && window.top.document) {
+              el = searchDoc(window.top.document);
+              if (el)
+                  return el;
+          }
+      }
+      catch (e) { }
+      return null;
+  }
   function installHook(serverApi) {
       try {
           const steamClient = window.SteamClient;
@@ -73,18 +119,18 @@
               window._orig_sendText_native = nativeFn;
               steamClient.Input.ControllerKeyboardSendText = function (text) {
                   try {
-                      const active = document.activeElement;
-                      const isInput = active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable);
-                      if (isInput) {
+                      const active = findActiveInput();
+                      if (active) {
+                          const doc = active.ownerDocument || document;
                           if (text === "\x02" || text === "\x08" || text === "Backspace") {
-                              document.execCommand("delete", false, undefined);
+                              doc.execCommand("delete", false, undefined);
                           }
                           else if (text === "\r" || text === "\n" || text === "\x03" || text === "Enter") {
                               const enterEvt = new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true });
                               active.dispatchEvent(enterEvt);
                           }
                           else if (text && text.length > 0 && text.charCodeAt(0) >= 32) {
-                              document.execCommand("insertText", false, text);
+                              doc.execCommand("insertText", false, text);
                           }
                       }
                       else {
@@ -92,7 +138,7 @@
                       }
                   }
                   catch (err) {
-                      console.error("[Wayland OSK Fix] callPluginMethod error:", err);
+                      console.error("[Wayland OSK Fix] sendText error:", err);
                   }
               };
               console.log("[Wayland OSK Fix] Installed KeyboardSendText hook successfully.");

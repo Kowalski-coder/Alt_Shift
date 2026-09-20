@@ -487,10 +487,12 @@ def sync_layout(lang: str):
             logger.debug(f"KDE layout sync error: {e}")
     else:
         # Game Mode (Gamescope Wayland uinput bridge)
-        if gamescope_device_layout != target_idx:
+        # In Gamescope with ru_RU locale, group 0 is Russian, group 1 is English
+        gamescope_target = 0 if target_idx == 1 else 1
+        if gamescope_device_layout != gamescope_target:
             emit_alt_shift()
-            gamescope_device_layout = target_idx
-            logger.info(f"Toggled Gamescope uinput device layout to {target_idx} ({lang_str})")
+            gamescope_device_layout = gamescope_target
+            logger.info(f"Toggled Gamescope uinput device layout to {gamescope_target} ({lang_str})")
 
 def auto_setup_system_xkb():
     """
