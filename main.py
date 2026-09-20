@@ -473,11 +473,9 @@ def sync_layout(lang: str):
         init_uinput_device()
     last_is_desktop = in_desktop
 
-    # 1. Always lock X11 / Xwayland group for X11 clients
-    set_x11_layout_group(lang_str)
-
     if in_desktop:
-        # Desktop Mode (KDE Plasma Wayland)
+        # Desktop Mode (KDE Plasma Wayland & X11)
+        set_x11_layout_group(lang_str)
         try:
             kde_target = get_kde_target_layout(lang_str)
             if current_cached_kde_layout != kde_target:
