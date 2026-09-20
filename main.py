@@ -527,26 +527,8 @@ def get_x11_state(lang_needed: str):
             pass
     return None, None
 
-STATE_FILE = Path("/tmp/wayland_osk_last_lang")
-
-def get_persisted_lang() -> str:
-    try:
-        if STATE_FILE.exists():
-            txt = STATE_FILE.read_text().strip().lower()
-            if txt in ["us", "ru"]:
-                return txt
-    except Exception:
-        pass
-    return "us"
-
-def persist_lang(lang: str):
-    try:
-        STATE_FILE.write_text(lang)
-    except Exception:
-        pass
-
-current_active_language = get_persisted_lang()
-gamescope_active_layout = 1 if current_active_language == "ru" else 0
+current_active_language = "us"
+gamescope_active_layout = 0
 last_is_desktop = None
 
 def sync_layout(lang: str):
@@ -557,13 +539,12 @@ def sync_layout(lang: str):
     target_idx = 1 if (lang == "ru" or lang == 1) else 0
     lang_str = "ru" if target_idx == 1 else "us"
     current_active_language = lang_str
-    persist_lang(lang_str)
 
     in_desktop = is_desktop_mode()
 
     if last_is_desktop is not None and last_is_desktop != in_desktop:
-        current_active_language = get_persisted_lang()
-        gamescope_active_layout = 1 if current_active_language == "ru" else 0
+        current_active_language = "us"
+        gamescope_active_layout = 0
         current_cached_kde_layout = -1
         destroy_uinput_device()
         init_uinput_device()
@@ -784,13 +765,11 @@ class Plugin:
 
     async def _main(self):
         global current_active_language, gamescope_active_layout
-        current_active_language = get_persisted_lang()
-        gamescope_active_layout = 1 if current_active_language == "ru" else 0
+        current_active_language = "us"
+        gamescope_active_layout = 0
         auto_setup_system_xkb()
         init_uinput_device()
-        if is_desktop_mode():
-            sync_layout(current_active_language)
-        logger.info(f"Wayland OSK Fix plugin backend loaded (persisted lang: {current_active_language}).")
+        logger.info("Wayland OSK Fix plugin backend loaded cleanly.")
 
     async def _unload(self):
         destroy_uinput_device()
