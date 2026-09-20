@@ -431,29 +431,68 @@ def set_x11_layout_group(lang: str) -> bool:
             logger.debug(f"X11 display {dpy_str} lock error: {e}")
     return success
 
+gamescope_device_layout = 0
+last_is_desktop = None
+
+def is_desktop_mode() -> bool:
+    try:
+        res = subprocess.run(["pgrep", "-x", "kwin_wayland"], capture_output=True, timeout=0.2)
+        return res.returncode == 0
+    except Exception:
+        return False
+
+def emit_alt_shift():
+    emit_raw_event(EV_KEY, KEY_LEFTALT, 1)
+    emit_raw_event(EV_SYN, SYN_REPORT, 0)
+    time.sleep(0.005)
+    emit_raw_event(EV_KEY, KEY_LEFTSHIFT, 1)
+    emit_raw_event(EV_SYN, SYN_REPORT, 0)
+    time.sleep(0.005)
+    emit_raw_event(EV_KEY, KEY_LEFTSHIFT, 0)
+    emit_raw_event(EV_SYN, SYN_REPORT, 0)
+    time.sleep(0.005)
+    emit_raw_event(EV_KEY, KEY_LEFTALT, 0)
+    emit_raw_event(EV_SYN, SYN_REPORT, 0)
+    time.sleep(0.015)
+
 def sync_layout(lang: str):
     """
     lang: 'us' (English) or 'ru' (Russian), or int (0=US, 1=RU)
-    100% state-aware and dynamically mapped in both Desktop Mode and Game Mode.
-    Synchronizes both X11/Gamescope XKB layout group and KDE Plasma DBus.
+    Dynamically mapped in both Desktop Mode (KDE Wayland DBus + X11) and Game Mode (Gamescope uinput).
     """
-    global current_cached_kde_layout
-    if isinstance(lang, int):
-        lang = "ru" if lang == 1 else "us"
+    global current_cached_kde_layout, gamescope_device_layout, last_is_desktop
+    target_idx = 1 if (lang == "ru" or lang == 1) else 0
+    lang_str = "ru" if target_idx == 1 else "us"
 
-    # 1. Always synchronize X11 / Xwayland / Gamescope layout group
-    set_x11_layout_group(lang)
+    in_desktop = is_desktop_mode()
 
-    # 2. Synchronize KDE Plasma DBus (Desktop Mode Wayland)
-    try:
-        kde_target = get_kde_target_layout(lang)
-        if current_cached_kde_layout != kde_target:
-            ok, out = call_kde_dbus("setLayout", "u", str(kde_target))
-            if ok:
-                current_cached_kde_layout = kde_target
-                logger.info(f"Switched KDE layout to {kde_target} ({lang})")
-    except Exception as e:
-        logger.debug(f"KDE layout sync error: {e}")
+    if last_is_desktop is not None and last_is_desktop != in_desktop:
+        gamescope_device_layout = 0
+        current_cached_kde_layout = -1
+        destroy_uinput_device()
+        init_uinput_device()
+    last_is_desktop = in_desktop
+
+    # 1. Always lock X11 / Xwayland group for X11 clients
+    set_x11_layout_group(lang_str)
+
+    if in_desktop:
+        # Desktop Mode (KDE Plasma Wayland)
+        try:
+            kde_target = get_kde_target_layout(lang_str)
+            if current_cached_kde_layout != kde_target:
+                ok, out = call_kde_dbus("setLayout", "u", str(kde_target))
+                if ok:
+                    current_cached_kde_layout = kde_target
+                    logger.info(f"Switched KDE layout to {kde_target} ({lang_str})")
+        except Exception as e:
+            logger.debug(f"KDE layout sync error: {e}")
+    else:
+        # Game Mode (Gamescope Wayland uinput bridge)
+        if gamescope_device_layout != target_idx:
+            emit_alt_shift()
+            gamescope_device_layout = target_idx
+            logger.info(f"Toggled Gamescope uinput device layout to {target_idx} ({lang_str})")
 
 def auto_setup_system_xkb():
     """
