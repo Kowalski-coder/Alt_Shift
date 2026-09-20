@@ -492,16 +492,27 @@ def get_x11_state(lang_needed: str):
             pass
     return None, None
 
+gamescope_active_layout = 0
+last_is_desktop = None
+
 def sync_layout(lang: str):
     """
     lang: 'us' (English) or 'ru' (Russian), or int (0=US, 1=RU)
-    Directly queries actual hardware X11/XKB state before typing.
-    Never guesses. 100% state-aware.
+    Directly queries actual hardware X11/XKB state before typing,
+    with automatic fallback tracking when X11 is not directly queryable.
     """
-    global current_cached_kde_layout
-    lang_str = "ru" if (lang == "ru" or lang == 1) else "us"
+    global current_cached_kde_layout, gamescope_active_layout, last_is_desktop
+    target_idx = 1 if (lang == "ru" or lang == 1) else 0
+    lang_str = "ru" if target_idx == 1 else "us"
 
     in_desktop = is_desktop_mode()
+
+    if last_is_desktop is not None and last_is_desktop != in_desktop:
+        gamescope_active_layout = 0
+        current_cached_kde_layout = -1
+        destroy_uinput_device()
+        init_uinput_device()
+    last_is_desktop = in_desktop
 
     if in_desktop:
         # Desktop Mode (KDE Plasma Wayland & X11)
@@ -516,12 +527,19 @@ def sync_layout(lang: str):
         except Exception as e:
             logger.debug(f"KDE layout sync error: {e}")
     else:
-        # Game Mode (Gamescope Wayland) - read real hardware group state
+        # Game Mode (Gamescope Wayland) - query real hardware group state
         curr_grp, target_grp = get_x11_state(lang_str)
         if curr_grp is not None and target_grp is not None:
             if curr_grp != target_grp:
                 emit_alt_shift()
+                gamescope_active_layout = target_grp
                 logger.info(f"Gamescope state was group {curr_grp}, needed group {target_grp} ({lang_str}) -> emitted Alt+Shift")
+        else:
+            # Fallback tracker for Gamescope uinput device (0 = US, 1 = RU)
+            if gamescope_active_layout != target_idx:
+                emit_alt_shift()
+                gamescope_active_layout = target_idx
+                logger.info(f"Gamescope fallback tracker: toggled layout to {target_idx} ({lang_str})")
 
 def auto_setup_system_xkb():
     """
