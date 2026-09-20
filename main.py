@@ -254,17 +254,6 @@ NEUTRAL_KEYS = {
     '&': (KEY_7, True), '*': (KEY_8, True), '(': (KEY_9, True),
     ')': (KEY_0, True), '\\': (KEY_BACKSLASH, False), '|': (KEY_BACKSLASH, True),
 }
-    '\x1b': KEY_ESC,
-    # Arrows
-    'ArrowLeft': KEY_LEFT,
-    '\x04': KEY_LEFT,
-    'ArrowRight': KEY_RIGHT,
-    '\x05': KEY_RIGHT,
-    'ArrowUp': KEY_UP,
-    '\x06': KEY_UP,
-    'ArrowDown': KEY_DOWN,
-    '\x07': KEY_DOWN,
-}
 
 uinput_fd = -1
 plugin_enabled = True
