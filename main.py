@@ -207,7 +207,7 @@ RU_TO_EVDEV = {
 }
 
 NEUTRAL_KEYS = {
-    # Whitespace & Control (never triggers layout change)
+    # Whitespace & Control (never alters layout)
     ' ': (KEY_SPACE, False),
     '\t': (KEY_TAB, False),
     'Tab': (KEY_TAB, False),
@@ -222,7 +222,7 @@ NEUTRAL_KEYS = {
     '\x7f': (KEY_BACKSPACE, False),
     'Backspace': (KEY_BACKSPACE, False),
     'Escape': (KEY_ESC, False),
-    '\x1b': (KEY_ESC, False),
+    '\x1b': KEY_ESC,
     'ArrowLeft': (KEY_LEFT, False),
     '\x04': (KEY_LEFT, False),
     'ArrowRight': (KEY_RIGHT, False),
@@ -232,27 +232,62 @@ NEUTRAL_KEYS = {
     'ArrowDown': (KEY_DOWN, False),
     '\x07': (KEY_DOWN, False),
 
-    # Digits
+    # Digits (identical in US and RU)
     '1': (KEY_1, False), '2': (KEY_2, False), '3': (KEY_3, False),
     '4': (KEY_4, False), '5': (KEY_5, False), '6': (KEY_6, False),
     '7': (KEY_7, False), '8': (KEY_8, False), '9': (KEY_9, False),
     '0': (KEY_0, False),
+}
 
-    # Symbols & Punctuation
-    '-': (KEY_MINUS, False), '_': (KEY_MINUS, True),
-    '=': (KEY_EQUAL, False), '+': (KEY_EQUAL, True),
-    '[': (KEY_LEFTBRACE, False), '{': (KEY_LEFTBRACE, True),
-    ']': (KEY_RIGHTBRACE, False), '}': (KEY_RIGHTBRACE, True),
-    ';': (KEY_SEMICOLON, False), ':': (KEY_SEMICOLON, True),
-    "'": (KEY_APOSTROPHE, False), '"': (KEY_APOSTROPHE, True),
-    ',': (KEY_COMMA, False), '<': (KEY_COMMA, True),
-    '.': (KEY_DOT, False), '>': (KEY_DOT, True),
-    '/': (KEY_SLASH, False), '?': (KEY_SLASH, True),
-    '`': (KEY_GRAVE, False), '~': (KEY_GRAVE, True),
-    '!': (KEY_1, True), '@': (KEY_2, True), '#': (KEY_3, True),
-    '$': (KEY_4, True), '%': (KEY_5, True), '^': (KEY_6, True),
-    '&': (KEY_7, True), '*': (KEY_8, True), '(': (KEY_9, True),
-    ')': (KEY_0, True), '\\': (KEY_BACKSLASH, False), '|': (KEY_BACKSLASH, True),
+RU_SYMBOLS = {
+    '.': (KEY_SLASH, False),       # Russian dot is on KEY_SLASH
+    ',': (KEY_SLASH, True),        # Russian comma is on Shift + KEY_SLASH
+    '?': (KEY_7, True),            # Russian question mark is on Shift + 7
+    '!': (KEY_1, True),            # Russian exclamation is on Shift + 1
+    '"': (KEY_2, True),            # Russian quote is on Shift + 2
+    ';': (KEY_4, True),            # Russian semicolon is on Shift + 4
+    ':': (KEY_6, True),            # Russian colon is on Shift + 6
+    '-': (KEY_MINUS, False),
+    '_': (KEY_MINUS, True),
+    '=': (KEY_EQUAL, False),
+    '+': (KEY_EQUAL, True),
+    '/': (KEY_BACKSLASH, True),
+    '\\': (KEY_BACKSLASH, False),
+}
+
+US_SYMBOLS = {
+    '.': (KEY_DOT, False),
+    ',': (KEY_COMMA, False),
+    '?': (KEY_SLASH, True),
+    '!': (KEY_1, True),
+    '"': (KEY_APOSTROPHE, True),
+    "'": (KEY_APOSTROPHE, False),
+    ';': (KEY_SEMICOLON, False),
+    ':': (KEY_SEMICOLON, True),
+    '-': (KEY_MINUS, False),
+    '_': (KEY_MINUS, True),
+    '=': (KEY_EQUAL, False),
+    '+': (KEY_EQUAL, True),
+    '[': (KEY_LEFTBRACE, False),
+    '{': (KEY_LEFTBRACE, True),
+    ']': (KEY_RIGHTBRACE, False),
+    '}': (KEY_RIGHTBRACE, True),
+    '/': (KEY_SLASH, False),
+    '\\': (KEY_BACKSLASH, False),
+    '|': (KEY_BACKSLASH, True),
+    '`': (KEY_GRAVE, False),
+    '~': (KEY_GRAVE, True),
+    '@': (KEY_2, True),
+    '#': (KEY_3, True),
+    '$': (KEY_4, True),
+    '%': (KEY_5, True),
+    '^': (KEY_6, True),
+    '&': (KEY_7, True),
+    '*': (KEY_8, True),
+    '(': (KEY_9, True),
+    ')': (KEY_0, True),
+    '<': (KEY_COMMA, True),
+    '>': (KEY_DOT, True),
 }
 
 uinput_fd = -1
@@ -487,6 +522,7 @@ def get_x11_state(lang_needed: str):
             pass
     return None, None
 
+current_active_language = "us"
 gamescope_active_layout = 0
 last_is_desktop = None
 
@@ -494,15 +530,17 @@ def sync_layout(lang: str):
     """
     lang: 'us' (English) or 'ru' (Russian), or int (0=US, 1=RU)
     """
-    global current_cached_kde_layout, gamescope_active_layout, last_is_desktop
+    global current_cached_kde_layout, gamescope_active_layout, last_is_desktop, current_active_language
     target_idx = 1 if (lang == "ru" or lang == 1) else 0
     lang_str = "ru" if target_idx == 1 else "us"
+    current_active_language = lang_str
 
     in_desktop = is_desktop_mode()
 
     if last_is_desktop is not None and last_is_desktop != in_desktop:
         gamescope_active_layout = 0
         current_cached_kde_layout = -1
+        current_active_language = "us"
         destroy_uinput_device()
         init_uinput_device()
     last_is_desktop = in_desktop
@@ -682,7 +720,7 @@ def emit_keypress(keycode: int, shift: bool = False):
 
 class Plugin:
     async def send_key(self, text: str = ""):
-        global plugin_enabled, last_key_time, last_key_text
+        global plugin_enabled, last_key_time, last_key_text, current_active_language
         if not plugin_enabled or not text:
             return {"success": False}
 
@@ -692,7 +730,7 @@ class Plugin:
         last_key_text = text
         last_key_time = now
 
-        logger.info(f"Wayland-OSK typing: {repr(text)}")
+        logger.info(f"Wayland-OSK typing: {repr(text)} (active lang: {current_active_language})")
 
         if text in NEUTRAL_KEYS:
             keycode, shift = NEUTRAL_KEYS[text]
@@ -711,14 +749,26 @@ class Plugin:
                 sync_layout("us")
                 keycode, shift = LATIN_TO_EVDEV[ch]
                 emit_keypress(keycode, shift)
+            elif current_active_language == "ru" and ch in RU_SYMBOLS:
+                keycode, shift = RU_SYMBOLS[ch]
+                emit_keypress(keycode, shift)
+            elif ch in US_SYMBOLS:
+                sync_layout("us")
+                keycode, shift = US_SYMBOLS[ch]
+                emit_keypress(keycode, shift)
 
         return {"success": True}
 
     async def _main(self):
+        global current_active_language, gamescope_active_layout
+        current_active_language = "us"
+        gamescope_active_layout = 0
         auto_setup_system_xkb()
         init_uinput_device()
+        sync_layout("us")
         logger.info("Wayland OSK Fix plugin backend loaded cleanly.")
 
     async def _unload(self):
+        sync_layout("us")
         destroy_uinput_device()
         logger.info("Wayland OSK Fix plugin backend unloaded.")
