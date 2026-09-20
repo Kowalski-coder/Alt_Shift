@@ -492,6 +492,23 @@ def get_x11_state(lang_needed: str):
             pass
     return None, None
 
+def load_settings():
+    try:
+        settings_file = SETTINGS_DIR / "settings.json"
+        if settings_file.exists():
+            return json.loads(settings_file.read_text())
+    except Exception:
+        pass
+    return {"primary_gamescope_layout": "ru"}
+
+def save_settings(data):
+    try:
+        SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
+        settings_file = SETTINGS_DIR / "settings.json"
+        settings_file.write_text(json.dumps(data, indent=2))
+    except Exception as e:
+        logger.warning(f"Could not save settings: {e}")
+
 gamescope_active_layout = 0
 last_is_desktop = None
 
@@ -527,19 +544,19 @@ def sync_layout(lang: str):
         except Exception as e:
             logger.debug(f"KDE layout sync error: {e}")
     else:
-        # Game Mode (Gamescope Wayland) - query real hardware group state
-        curr_grp, target_grp = get_x11_state(lang_str)
-        if curr_grp is not None and target_grp is not None:
-            if curr_grp != target_grp:
-                emit_alt_shift()
-                gamescope_active_layout = target_grp
-                logger.info(f"Gamescope state was group {curr_grp}, needed group {target_grp} ({lang_str}) -> emitted Alt+Shift")
+        # Game Mode (Gamescope Wayland)
+        cfg = load_settings()
+        primary = cfg.get("primary_gamescope_layout", "ru")
+        # In Game Mode on Steam Deck with Russian locale, Group 0 is Russian, Group 1 is English
+        if primary == "ru":
+            gamescope_target = 0 if target_idx == 1 else 1
         else:
-            # Fallback tracker for Gamescope uinput device (0 = US, 1 = RU)
-            if gamescope_active_layout != target_idx:
-                emit_alt_shift()
-                gamescope_active_layout = target_idx
-                logger.info(f"Gamescope fallback tracker: toggled layout to {target_idx} ({lang_str})")
+            gamescope_target = 1 if target_idx == 1 else 0
+
+        if gamescope_active_layout != gamescope_target:
+            emit_alt_shift()
+            gamescope_active_layout = gamescope_target
+            logger.info(f"Gamescope: toggled layout to group {gamescope_target} ({lang_str})")
 
 def auto_setup_system_xkb():
     """
@@ -696,6 +713,13 @@ def emit_keypress(keycode: int, shift: bool = False):
 
 
 class Plugin:
+    async def get_settings(self):
+        return load_settings()
+
+    async def set_settings(self, settings: dict):
+        save_settings(settings)
+        return {"success": True}
+
     async def send_key(self, text: str = ""):
         global plugin_enabled, last_key_time, last_key_text
         if not plugin_enabled or not text:

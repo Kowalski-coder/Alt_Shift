@@ -1,11 +1,12 @@
 import {
   definePlugin,
+  DropdownItem,
   PanelSection,
   PanelSectionRow,
   ServerAPI,
   staticClasses
 } from "decky-frontend-lib";
-import React, { VFC } from "react";
+import React, { VFC, useState, useEffect } from "react";
 import { FaKeyboard } from "react-icons/fa";
 
 function findActiveInput(): HTMLElement | null {
@@ -95,17 +96,42 @@ function uninstallHook() {
   }
 }
 
-const Content: VFC = () => {
+const Content: VFC<{ serverApi: ServerAPI }> = ({ serverApi }) => {
+  const [primaryLayout, setPrimaryLayout] = useState<string>("ru");
+
+  useEffect(() => {
+    serverApi.callPluginMethod("get_settings", {}).then((res) => {
+      if (res?.success && res?.result?.primary_gamescope_layout) {
+        setPrimaryLayout(res.result.primary_gamescope_layout);
+      }
+    });
+  }, []);
+
+  const handleLayoutChange = (opt: any) => {
+    const val = opt.data;
+    setPrimaryLayout(val);
+    serverApi.callPluginMethod("set_settings", {
+      settings: { primary_gamescope_layout: val }
+    });
+  };
+
   return (
     <PanelSection>
       <PanelSectionRow>
-        <div style={{ lineHeight: "1.45", color: "#dcdedf", fontSize: "0.95em", padding: "4px 0" }}>
-          Плагин перехватывает ввод экранной клавиатуры и транслирует через uinput, а также автоматически синхронизирует переключение системной раскладки с экранной клавиатурой в окружении Wayland
-        </div>
+        <DropdownItem
+          label="Раскладка в Game Mode"
+          description="Порядок системных раскладок в игровом режиме"
+          rgOptions={[
+            { label: "Русская (по умолчанию)", data: "ru" },
+            { label: "Английская", data: "us" },
+          ]}
+          selectedOption={primaryLayout}
+          onChange={handleLayoutChange}
+        />
       </PanelSectionRow>
       <PanelSectionRow>
-        <div style={{ fontSize: "0.85em", color: "#8f98a0", marginTop: "12px", lineHeight: "1.4" }}>
-          Вы можете скрыть плагин в настройках Decky Loader, он продолжит работать в фоне
+        <div style={{ lineHeight: "1.45", color: "#8f98a0", fontSize: "0.85em", marginTop: "8px" }}>
+          Плагин перехватывает ввод экранной клавиатуры и автоматически согласует системную раскладку
         </div>
       </PanelSectionRow>
     </PanelSection>
@@ -117,7 +143,7 @@ export default definePlugin((serverApi: ServerAPI) => {
 
   return {
     title: <div className={staticClasses.Title}>Wayland OSK Fix</div>,
-    content: <Content />,
+    content: <Content serverApi={serverApi} />,
     icon: <FaKeyboard />,
     onDismount() {
       uninstallHook();
