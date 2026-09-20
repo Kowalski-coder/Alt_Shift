@@ -344,10 +344,54 @@ def find_xauth_path(uid: int, homedir: str) -> str:
         return str(user_xauth)
     return ""
 
-def set_x11_layout_group(target_group: int) -> bool:
+kde_layout_map = {}
+
+def get_kde_target_layout(lang: str) -> int:
     """
-    Directly queries and locks the active X11 / Xwayland XKB layout group (0=US, 1=RU)
-    using libX11 XkbLockGroup with automatic XAUTHORITY discovery.
+    Dynamically finds the exact index of 'us' or 'ru' layout in KDE's layout list,
+    even if the user placed Russian first (ru,us) or has multiple layouts.
+    """
+    global kde_layout_map
+    try:
+        ok, out = call_kde_dbus("getLayoutsList")
+        if ok and "a(sss)" in out:
+            import re
+            matches = re.findall(r"\"([a-zA-Z0-9_-]+)\"", out)
+            layouts = [matches[i].lower() for i in range(0, len(matches), 3)]
+            mapping = {}
+            for idx, l in enumerate(layouts):
+                if l.startswith("us") or l.startswith("en"):
+                    mapping["us"] = idx
+                elif l.startswith("ru"):
+                    mapping["ru"] = idx
+            if "us" in mapping:
+                kde_layout_map["us"] = mapping["us"]
+            if "ru" in mapping:
+                kde_layout_map["ru"] = mapping["ru"]
+    except Exception:
+        pass
+    return kde_layout_map.get(lang, 1 if lang == "ru" else 0)
+
+def get_x11_target_group(dpy, lang: str) -> int:
+    """
+    Dynamically identifies which XKB group index (0..3) belongs to English vs Russian
+    by inspecting keysyms of KEY_Q (keycode 24) on the active X11 display.
+    """
+    try:
+        for grp in range(4):
+            sym = libX11.XKeycodeToKeysym(dpy, 24, grp * 2)
+            if lang == "us" and sym == 0x0071:  # 'q'
+                return grp
+            elif lang == "ru" and (0x0600 <= sym <= 0x06ff or 0x0400 <= sym <= 0x04ff):  # Cyrillic
+                return grp
+    except Exception:
+        pass
+    return 1 if lang == "ru" else 0
+
+def set_x11_layout_group(lang: str) -> bool:
+    """
+    Directly queries and locks the active X11 / Xwayland XKB layout group
+    using libX11 XkbLockGroup with dynamic group discovery and XAUTHORITY discovery.
     Absolute, state-aware, never inverts.
     """
     if not libX11:
@@ -372,19 +416,44 @@ def set_x11_layout_group(target_group: int) -> bool:
             dpy = libX11.XOpenDisplay(dpy_str.encode("utf-8"))
             if not dpy:
                 continue
+            target_group = get_x11_target_group(dpy, lang)
             state = XkbStateRec()
             if libX11.XkbGetState(dpy, 0x0100, ctypes.byref(state)) == 0:
                 curr = state.group
                 if curr != target_group:
                     libX11.XkbLockGroup(dpy, 0x0100, target_group)
                     libX11.XFlush(dpy)
-                    time.sleep(0.01)
-                    logger.info(f"Locked X11 display {dpy_str} XKB group to {target_group} (was {curr})")
+                    time.sleep(0.015)
+                    logger.info(f"Locked X11 display {dpy_str} XKB group to {target_group} ({lang}, was {curr})")
                 success = True
             libX11.XCloseDisplay(dpy)
         except Exception as e:
             logger.debug(f"X11 display {dpy_str} lock error: {e}")
     return success
+
+def sync_layout(lang: str):
+    """
+    lang: 'us' (English) or 'ru' (Russian), or int (0=US, 1=RU)
+    100% state-aware and dynamically mapped in both Desktop Mode and Game Mode.
+    Synchronizes both X11/Gamescope XKB layout group and KDE Plasma DBus.
+    """
+    global current_cached_kde_layout
+    if isinstance(lang, int):
+        lang = "ru" if lang == 1 else "us"
+
+    # 1. Always synchronize X11 / Xwayland / Gamescope layout group
+    set_x11_layout_group(lang)
+
+    # 2. Synchronize KDE Plasma DBus (Desktop Mode Wayland)
+    try:
+        kde_target = get_kde_target_layout(lang)
+        if current_cached_kde_layout != kde_target:
+            ok, out = call_kde_dbus("setLayout", "u", str(kde_target))
+            if ok:
+                current_cached_kde_layout = kde_target
+                logger.info(f"Switched KDE layout to {kde_target} ({lang})")
+    except Exception as e:
+        logger.debug(f"KDE layout sync error: {e}")
 
 def auto_setup_system_xkb():
     """
@@ -475,26 +544,6 @@ def auto_setup_system_xkb():
 
     except Exception as e:
         logger.warning(f"Could not auto-setup XKB: {e}")
-
-def sync_layout(target_layout: int):
-    """
-    target_layout: 0 = US (English), 1 = RU (Russian)
-    100% state-aware and absolute in both Desktop Mode and Game Mode.
-    """
-    global current_cached_kde_layout
-
-    # 1. Try KDE Plasma DBus (Desktop Mode)
-    ok, out = call_kde_dbus("setLayout", "u", str(target_layout))
-    if ok:
-        if current_cached_kde_layout != target_layout:
-            current_cached_kde_layout = target_layout
-            time.sleep(0.035)  # Wait for KWin Wayland to update window layout state
-            logger.info(f"Switched KDE layout to {target_layout}")
-        return
-
-    # 2. In Game Mode (Gamescope / Xwayland):
-    # Use direct XkbLockGroup
-    set_x11_layout_group(target_layout)
 
 def init_uinput_device():
     global uinput_fd
