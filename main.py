@@ -45,6 +45,46 @@ class UInputSetup(ctypes.Structure):
         ("ff_effects_max", ctypes.c_uint32),
     ]
 
+# X11 / XKB ctypes definitions for absolute Game Mode layout switching
+libX11 = None
+try:
+    libX11 = ctypes.CDLL("libX11.so.6")
+
+    class XkbStateRec(ctypes.Structure):
+        _fields_ = [
+            ("group", ctypes.c_ubyte),
+            ("locked_group", ctypes.c_ubyte),
+            ("base_group", ctypes.c_short),
+            ("latched_group", ctypes.c_short),
+            ("mods", ctypes.c_ubyte),
+            ("base_mods", ctypes.c_ubyte),
+            ("latched_mods", ctypes.c_ubyte),
+            ("locked_mods", ctypes.c_ubyte),
+            ("compat_state", ctypes.c_ubyte),
+            ("grab_mods", ctypes.c_ubyte),
+            ("compat_grab_mods", ctypes.c_ubyte),
+            ("lookup_mods", ctypes.c_ubyte),
+            ("compat_lookup_mods", ctypes.c_ubyte),
+            ("ptr_buttons", ctypes.c_ushort),
+        ]
+
+    libX11.XOpenDisplay.argtypes = [ctypes.c_char_p]
+    libX11.XOpenDisplay.restype = ctypes.c_void_p
+
+    libX11.XkbGetState.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.POINTER(XkbStateRec)]
+    libX11.XkbGetState.restype = ctypes.c_int
+
+    libX11.XkbLockGroup.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_uint]
+    libX11.XkbLockGroup.restype = ctypes.c_int
+
+    libX11.XFlush.argtypes = [ctypes.c_void_p]
+    libX11.XFlush.restype = ctypes.c_int
+
+    libX11.XCloseDisplay.argtypes = [ctypes.c_void_p]
+    libX11.XCloseDisplay.restype = ctypes.c_int
+except Exception as e:
+    logger.warning(f"Could not load libX11.so.6: {e}")
+
 # Linux Keycodes
 KEY_ESC = 1
 KEY_1 = 2
@@ -223,7 +263,6 @@ SPECIAL_KEYS = {
 uinput_fd = -1
 plugin_enabled = True
 current_cached_kde_layout = -1
-gamescope_active_layout = 0  # 0: US, 1: RU
 last_key_time = 0
 last_key_text = None
 
@@ -292,6 +331,42 @@ def call_kde_dbus(member: str, sig: str = "", arg: str = ""):
         return False, res.stderr.strip()
     except Exception as e:
         return False, str(e)
+
+def set_x11_layout_group(target_group: int) -> bool:
+    """
+    Directly queries and locks the active X11 / Xwayland XKB layout group (0=US, 1=RU)
+    using libX11 XkbLockGroup. Absolute, state-aware, never inverts.
+    """
+    if not libX11:
+        return False
+
+    displays = []
+    env_display = os.environ.get("DISPLAY")
+    if env_display:
+        displays.append(env_display)
+    for d in [":0", ":1"]:
+        if d not in displays:
+            displays.append(d)
+
+    success = False
+    for dpy_str in displays:
+        try:
+            dpy = libX11.XOpenDisplay(dpy_str.encode("utf-8"))
+            if not dpy:
+                continue
+            state = XkbStateRec()
+            if libX11.XkbGetState(dpy, 0x0100, ctypes.byref(state)) == 0:
+                curr = state.group
+                if curr != target_group:
+                    libX11.XkbLockGroup(dpy, 0x0100, target_group)
+                    libX11.XFlush(dpy)
+                    time.sleep(0.01)
+                    logger.info(f"Locked X11 display {dpy_str} XKB group to {target_group} (was {curr})")
+                success = True
+            libX11.XCloseDisplay(dpy)
+        except Exception as e:
+            logger.debug(f"X11 display {dpy_str} lock error: {e}")
+    return success
 
 def auto_setup_system_xkb():
     """
@@ -386,9 +461,9 @@ def auto_setup_system_xkb():
 def sync_layout(target_layout: int):
     """
     target_layout: 0 = US (English), 1 = RU (Russian)
-    Handles both Desktop Mode (KDE Plasma DBus) and Game Mode (Gamescope XKB toggle).
+    100% state-aware and absolute in both Desktop Mode and Game Mode.
     """
-    global current_cached_kde_layout, gamescope_active_layout
+    global current_cached_kde_layout
 
     # 1. Try KDE Plasma DBus (Desktop Mode)
     ok, out = call_kde_dbus("setLayout", "u", str(target_layout))
@@ -399,18 +474,9 @@ def sync_layout(target_layout: int):
             logger.info(f"Switched KDE layout to {target_layout}")
         return
 
-    # 2. If not in KDE (e.g. Gamescope in Game Mode):
-    if gamescope_active_layout != target_layout:
-        emit_raw_event(EV_KEY, KEY_LEFTALT, 1)
-        emit_raw_event(EV_KEY, KEY_LEFTSHIFT, 1)
-        emit_raw_event(EV_SYN, SYN_REPORT, 0)
-        time.sleep(0.005)
-        emit_raw_event(EV_KEY, KEY_LEFTSHIFT, 0)
-        emit_raw_event(EV_KEY, KEY_LEFTALT, 0)
-        emit_raw_event(EV_SYN, SYN_REPORT, 0)
-        time.sleep(0.02)
-        gamescope_active_layout = target_layout
-        logger.info(f"Toggled Gamescope layout to {target_layout}")
+    # 2. In Game Mode (Gamescope / Xwayland):
+    # Use direct XkbLockGroup
+    set_x11_layout_group(target_layout)
 
 def init_uinput_device():
     global uinput_fd
