@@ -332,13 +332,31 @@ def call_kde_dbus(member: str, sig: str = "", arg: str = ""):
     except Exception as e:
         return False, str(e)
 
+def find_xauth_path(uid: int, homedir: str) -> str:
+    run_user = Path(f"/run/user/{uid}")
+    if run_user.exists():
+        for p in run_user.glob("xauth*"):
+            return str(p)
+    for p in Path("/tmp").glob(f"xauth_{uid}_*"):
+        return str(p)
+    user_xauth = Path(homedir) / ".Xauthority"
+    if user_xauth.exists():
+        return str(user_xauth)
+    return ""
+
 def set_x11_layout_group(target_group: int) -> bool:
     """
     Directly queries and locks the active X11 / Xwayland XKB layout group (0=US, 1=RU)
-    using libX11 XkbLockGroup. Absolute, state-aware, never inverts.
+    using libX11 XkbLockGroup with automatic XAUTHORITY discovery.
+    Absolute, state-aware, never inverts.
     """
     if not libX11:
         return False
+
+    username, uid, gid, homedir = get_user_info()
+    xauth = find_xauth_path(uid, homedir)
+    if xauth:
+        os.environ["XAUTHORITY"] = xauth
 
     displays = []
     env_display = os.environ.get("DISPLAY")
