@@ -146,7 +146,7 @@ KEY_LEFT = 105
 KEY_RIGHT = 106
 KEY_DOWN = 108
 
-CHAR_TO_EVDEV = {
+LATIN_TO_EVDEV = {
     # Lowercase Latin
     'a': (KEY_A, False), 'b': (KEY_B, False), 'c': (KEY_C, False),
     'd': (KEY_D, False), 'e': (KEY_E, False), 'f': (KEY_F, False),
@@ -168,29 +168,6 @@ CHAR_TO_EVDEV = {
     'S': (KEY_S, True), 'T': (KEY_T, True), 'U': (KEY_U, True),
     'V': (KEY_V, True), 'W': (KEY_W, True), 'X': (KEY_X, True),
     'Y': (KEY_Y, True), 'Z': (KEY_Z, True),
-
-    # Digits
-    '1': (KEY_1, False), '2': (KEY_2, False), '3': (KEY_3, False),
-    '4': (KEY_4, False), '5': (KEY_5, False), '6': (KEY_6, False),
-    '7': (KEY_7, False), '8': (KEY_8, False), '9': (KEY_9, False),
-    '0': (KEY_0, False),
-
-    # Special / Symbols
-    ' ': (KEY_SPACE, False),
-    '-': (KEY_MINUS, False), '_': (KEY_MINUS, True),
-    '=': (KEY_EQUAL, False), '+': (KEY_EQUAL, True),
-    '[': (KEY_LEFTBRACE, False), '{': (KEY_LEFTBRACE, True),
-    ']': (KEY_RIGHTBRACE, False), '}': (KEY_RIGHTBRACE, True),
-    ';': (KEY_SEMICOLON, False), ':': (KEY_SEMICOLON, True),
-    "'": (KEY_APOSTROPHE, False), '"': (KEY_APOSTROPHE, True),
-    ',': (KEY_COMMA, False), '<': (KEY_COMMA, True),
-    '.': (KEY_DOT, False), '>': (KEY_DOT, True),
-    '/': (KEY_SLASH, False), '?': (KEY_SLASH, True),
-    '`': (KEY_GRAVE, False), '~': (KEY_GRAVE, True),
-    '!': (KEY_1, True), '@': (KEY_2, True), '#': (KEY_3, True),
-    '$': (KEY_4, True), '%': (KEY_5, True), '^': (KEY_6, True),
-    '&': (KEY_7, True), '*': (KEY_8, True), '(': (KEY_9, True),
-    ')': (KEY_0, True), '\\': (KEY_BACKSLASH, False), '|': (KEY_BACKSLASH, True),
 }
 
 RU_TO_EVDEV = {
@@ -229,25 +206,54 @@ RU_TO_EVDEV = {
     'ё': (KEY_GRAVE, False), 'Ё': (KEY_GRAVE, True),
 }
 
-SPECIAL_KEYS = {
-    # Backspace (Steam sends \x02, \x08, or string 'Backspace')
-    'Backspace': KEY_BACKSPACE,
-    '\x02': KEY_BACKSPACE,
-    '\x08': KEY_BACKSPACE,
-    '\x7f': KEY_BACKSPACE,
-    # Enter
-    'Enter': KEY_ENTER,
-    '\r': KEY_ENTER,
-    '\n': KEY_ENTER,
-    '\x03': KEY_ENTER,
-    '\x0a': KEY_ENTER,
-    '\x0d': KEY_ENTER,
-    # Tab
-    'Tab': KEY_TAB,
-    '\t': KEY_TAB,
-    '\x09': KEY_TAB,
-    # Escape
-    'Escape': KEY_ESC,
+NEUTRAL_KEYS = {
+    # Whitespace & Control (never triggers layout change)
+    ' ': (KEY_SPACE, False),
+    '\t': (KEY_TAB, False),
+    'Tab': (KEY_TAB, False),
+    '\r': (KEY_ENTER, False),
+    '\n': (KEY_ENTER, False),
+    'Enter': (KEY_ENTER, False),
+    '\x03': (KEY_ENTER, False),
+    '\x0a': (KEY_ENTER, False),
+    '\x0d': (KEY_ENTER, False),
+    '\x02': (KEY_BACKSPACE, False),
+    '\x08': (KEY_BACKSPACE, False),
+    '\x7f': (KEY_BACKSPACE, False),
+    'Backspace': (KEY_BACKSPACE, False),
+    'Escape': (KEY_ESC, False),
+    '\x1b': (KEY_ESC, False),
+    'ArrowLeft': (KEY_LEFT, False),
+    '\x04': (KEY_LEFT, False),
+    'ArrowRight': (KEY_RIGHT, False),
+    '\x05': (KEY_RIGHT, False),
+    'ArrowUp': (KEY_UP, False),
+    '\x06': (KEY_UP, False),
+    'ArrowDown': (KEY_DOWN, False),
+    '\x07': (KEY_DOWN, False),
+
+    # Digits
+    '1': (KEY_1, False), '2': (KEY_2, False), '3': (KEY_3, False),
+    '4': (KEY_4, False), '5': (KEY_5, False), '6': (KEY_6, False),
+    '7': (KEY_7, False), '8': (KEY_8, False), '9': (KEY_9, False),
+    '0': (KEY_0, False),
+
+    # Symbols & Punctuation
+    '-': (KEY_MINUS, False), '_': (KEY_MINUS, True),
+    '=': (KEY_EQUAL, False), '+': (KEY_EQUAL, True),
+    '[': (KEY_LEFTBRACE, False), '{': (KEY_LEFTBRACE, True),
+    ']': (KEY_RIGHTBRACE, False), '}': (KEY_RIGHTBRACE, True),
+    ';': (KEY_SEMICOLON, False), ':': (KEY_SEMICOLON, True),
+    "'": (KEY_APOSTROPHE, False), '"': (KEY_APOSTROPHE, True),
+    ',': (KEY_COMMA, False), '<': (KEY_COMMA, True),
+    '.': (KEY_DOT, False), '>': (KEY_DOT, True),
+    '/': (KEY_SLASH, False), '?': (KEY_SLASH, True),
+    '`': (KEY_GRAVE, False), '~': (KEY_GRAVE, True),
+    '!': (KEY_1, True), '@': (KEY_2, True), '#': (KEY_3, True),
+    '$': (KEY_4, True), '%': (KEY_5, True), '^': (KEY_6, True),
+    '&': (KEY_7, True), '*': (KEY_8, True), '(': (KEY_9, True),
+    ')': (KEY_0, True), '\\': (KEY_BACKSLASH, False), '|': (KEY_BACKSLASH, True),
+}
     '\x1b': KEY_ESC,
     # Arrows
     'ArrowLeft': KEY_LEFT,
@@ -492,31 +498,12 @@ def get_x11_state(lang_needed: str):
             pass
     return None, None
 
-def load_settings():
-    try:
-        settings_file = SETTINGS_DIR / "settings.json"
-        if settings_file.exists():
-            return json.loads(settings_file.read_text())
-    except Exception:
-        pass
-    return {"primary_gamescope_layout": "ru"}
-
-def save_settings(data):
-    try:
-        SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
-        settings_file = SETTINGS_DIR / "settings.json"
-        settings_file.write_text(json.dumps(data, indent=2))
-    except Exception as e:
-        logger.warning(f"Could not save settings: {e}")
-
 gamescope_active_layout = 0
 last_is_desktop = None
 
 def sync_layout(lang: str):
     """
     lang: 'us' (English) or 'ru' (Russian), or int (0=US, 1=RU)
-    Directly queries actual hardware X11/XKB state before typing,
-    with automatic fallback tracking when X11 is not directly queryable.
     """
     global current_cached_kde_layout, gamescope_active_layout, last_is_desktop
     target_idx = 1 if (lang == "ru" or lang == 1) else 0
@@ -544,19 +531,11 @@ def sync_layout(lang: str):
         except Exception as e:
             logger.debug(f"KDE layout sync error: {e}")
     else:
-        # Game Mode (Gamescope Wayland)
-        cfg = load_settings()
-        primary = cfg.get("primary_gamescope_layout", "ru")
-        # In Game Mode on Steam Deck with Russian locale, Group 0 is Russian, Group 1 is English
-        if primary == "ru":
-            gamescope_target = 0 if target_idx == 1 else 1
-        else:
-            gamescope_target = 1 if target_idx == 1 else 0
-
-        if gamescope_active_layout != gamescope_target:
+        # Game Mode (Gamescope Wayland): 0=US, 1=RU
+        if gamescope_active_layout != target_idx:
             emit_alt_shift()
-            gamescope_active_layout = gamescope_target
-            logger.info(f"Gamescope: toggled layout to group {gamescope_target} ({lang_str})")
+            gamescope_active_layout = target_idx
+            logger.info(f"Gamescope: toggled layout to {target_idx} ({lang_str})")
 
 def auto_setup_system_xkb():
     """
@@ -713,13 +692,6 @@ def emit_keypress(keycode: int, shift: bool = False):
 
 
 class Plugin:
-    async def get_settings(self):
-        return load_settings()
-
-    async def set_settings(self, settings: dict):
-        save_settings(settings)
-        return {"success": True}
-
     async def send_key(self, text: str = ""):
         global plugin_enabled, last_key_time, last_key_text
         if not plugin_enabled or not text:
@@ -733,20 +705,22 @@ class Plugin:
 
         logger.info(f"Wayland-OSK typing: {repr(text)}")
 
-        if text in SPECIAL_KEYS:
-            emit_keypress(SPECIAL_KEYS[text], False)
+        if text in NEUTRAL_KEYS:
+            keycode, shift = NEUTRAL_KEYS[text]
+            emit_keypress(keycode, shift)
             return {"success": True}
 
         for ch in text:
-            if ch in SPECIAL_KEYS:
-                emit_keypress(SPECIAL_KEYS[ch], False)
+            if ch in NEUTRAL_KEYS:
+                keycode, shift = NEUTRAL_KEYS[ch]
+                emit_keypress(keycode, shift)
             elif ch in RU_TO_EVDEV:
-                sync_layout(1)
+                sync_layout("ru")
                 keycode, shift = RU_TO_EVDEV[ch]
                 emit_keypress(keycode, shift)
-            elif ch in CHAR_TO_EVDEV:
-                sync_layout(0)
-                keycode, shift = CHAR_TO_EVDEV[ch]
+            elif ch in LATIN_TO_EVDEV:
+                sync_layout("us")
+                keycode, shift = LATIN_TO_EVDEV[ch]
                 emit_keypress(keycode, shift)
 
         return {"success": True}

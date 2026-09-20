@@ -160,36 +160,18 @@
           console.error("[Wayland OSK Fix] Uninstall error:", e);
       }
   }
-  const Content = ({ serverApi }) => {
-      const [primaryLayout, setPrimaryLayout] = React.useState("ru");
-      React.useEffect(() => {
-          serverApi.callPluginMethod("get_settings", {}).then((res) => {
-              if (res?.success && res?.result?.primary_gamescope_layout) {
-                  setPrimaryLayout(res.result.primary_gamescope_layout);
-              }
-          });
-      }, []);
-      const handleLayoutChange = (opt) => {
-          const val = opt.data;
-          setPrimaryLayout(val);
-          serverApi.callPluginMethod("set_settings", {
-              settings: { primary_gamescope_layout: val }
-          });
-      };
+  const Content = () => {
       return (React__default["default"].createElement(deckyFrontendLib.PanelSection, null,
           React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-              React__default["default"].createElement(deckyFrontendLib.DropdownItem, { label: "\u0420\u0430\u0441\u043A\u043B\u0430\u0434\u043A\u0430 \u0432 Game Mode", description: "\u041F\u043E\u0440\u044F\u0434\u043E\u043A \u0441\u0438\u0441\u0442\u0435\u043C\u043D\u044B\u0445 \u0440\u0430\u0441\u043A\u043B\u0430\u0434\u043E\u043A \u0432 \u0438\u0433\u0440\u043E\u0432\u043E\u043C \u0440\u0435\u0436\u0438\u043C\u0435", rgOptions: [
-                      { label: "Русская (по умолчанию)", data: "ru" },
-                      { label: "Английская", data: "us" },
-                  ], selectedOption: primaryLayout, onChange: handleLayoutChange })),
+              React__default["default"].createElement("div", { style: { lineHeight: "1.45", color: "#dcdedf", fontSize: "0.95em", padding: "4px 0" } }, "\u041F\u043B\u0430\u0433\u0438\u043D \u043F\u0435\u0440\u0435\u0445\u0432\u0430\u0442\u044B\u0432\u0430\u0435\u0442 \u0432\u0432\u043E\u0434 \u044D\u043A\u0440\u0430\u043D\u043D\u043E\u0439 \u043A\u043B\u0430\u0432\u0438\u0430\u0442\u0443\u0440\u044B \u0438 \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u0443\u0435\u0442 \u0441\u0438\u0441\u0442\u0435\u043C\u043D\u0443\u044E \u0440\u0430\u0441\u043A\u043B\u0430\u0434\u043A\u0443 \u0432 \u043E\u043A\u0440\u0443\u0436\u0435\u043D\u0438\u0438 Wayland \u0438 Game Mode")),
           React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-              React__default["default"].createElement("div", { style: { lineHeight: "1.45", color: "#8f98a0", fontSize: "0.85em", marginTop: "8px" } }, "\u041F\u043B\u0430\u0433\u0438\u043D \u043F\u0435\u0440\u0435\u0445\u0432\u0430\u0442\u044B\u0432\u0430\u0435\u0442 \u0432\u0432\u043E\u0434 \u044D\u043A\u0440\u0430\u043D\u043D\u043E\u0439 \u043A\u043B\u0430\u0432\u0438\u0430\u0442\u0443\u0440\u044B \u0438 \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u0441\u043E\u0433\u043B\u0430\u0441\u0443\u0435\u0442 \u0441\u0438\u0441\u0442\u0435\u043C\u043D\u0443\u044E \u0440\u0430\u0441\u043A\u043B\u0430\u0434\u043A\u0443"))));
+              React__default["default"].createElement("div", { style: { fontSize: "0.85em", color: "#8f98a0", marginTop: "12px", lineHeight: "1.4" } }, "\u0412\u044B \u043C\u043E\u0436\u0435\u0442\u0435 \u0441\u043A\u0440\u044B\u0442\u044C \u043F\u043B\u0430\u0433\u0438\u043D \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 Decky Loader, \u043E\u043D \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442 \u0440\u0430\u0431\u043E\u0442\u0430\u0442\u044C \u0432 \u0444\u043E\u043D\u0435"))));
   };
   var index = deckyFrontendLib.definePlugin((serverApi) => {
       installHook(serverApi);
       return {
           title: React__default["default"].createElement("div", { className: deckyFrontendLib.staticClasses.Title }, "Wayland OSK Fix"),
-          content: React__default["default"].createElement(Content, { serverApi: serverApi }),
+          content: React__default["default"].createElement(Content, null),
           icon: React__default["default"].createElement(FaKeyboard, null),
           onDismount() {
               uninstallHook();
