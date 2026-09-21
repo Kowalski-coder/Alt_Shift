@@ -233,60 +233,11 @@ SPECIAL_KEYS = {
     '\x07': KEY_DOWN,
 }
 
-libc = None
-try:
-    libc = ctypes.CDLL("libc.so.6")
-    libc.setenv.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
-except Exception as e:
-    logger.warning(f"Could not load libc.so.6: {e}")
-
-# X11 / XKB ctypes definitions
-libX11 = None
-try:
-    libX11 = ctypes.CDLL("libX11.so.6")
-
-    class XkbStateRec(ctypes.Structure):
-        _fields_ = [
-            ("group", ctypes.c_ubyte),
-            ("locked_group", ctypes.c_ubyte),
-            ("base_group", ctypes.c_short),
-            ("latched_group", ctypes.c_short),
-            ("mods", ctypes.c_ubyte),
-            ("base_mods", ctypes.c_ubyte),
-            ("latched_mods", ctypes.c_ubyte),
-            ("locked_mods", ctypes.c_ubyte),
-            ("compat_state", ctypes.c_ubyte),
-            ("grab_mods", ctypes.c_ubyte),
-            ("compat_grab_mods", ctypes.c_ubyte),
-            ("lookup_mods", ctypes.c_ubyte),
-            ("compat_lookup_mods", ctypes.c_ubyte),
-            ("ptr_buttons", ctypes.c_ushort),
-        ]
-
-    libX11.XOpenDisplay.argtypes = [ctypes.c_char_p]
-    libX11.XOpenDisplay.restype = ctypes.c_void_p
-
-    libX11.XkbGetState.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.POINTER(XkbStateRec)]
-    libX11.XkbGetState.restype = ctypes.c_int
-
-    libX11.XkbLockGroup.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_uint]
-    libX11.XkbLockGroup.restype = ctypes.c_int
-
-    libX11.XFlush.argtypes = [ctypes.c_void_p]
-    libX11.XFlush.restype = ctypes.c_int
-
-    libX11.XCloseDisplay.argtypes = [ctypes.c_void_p]
-    libX11.XCloseDisplay.restype = ctypes.c_int
-except Exception as e:
-    logger.warning(f"Could not load libX11.so.6: {e}")
-
 uinput_fd = -1
 current_cached_kde_layout = -1
-current_active_language = "us"
-gamescope_wayland_layout = 0
+gamescope_active_layout = 0  # 0: US, 1: RU
 last_key_time = 0
 last_key_text = None
-kde_layout_map = {}
 
 def get_user_info():
     username = os.environ.get("DECKY_USER")
@@ -342,11 +293,6 @@ def call_kde_dbus(member: str, sig: str = "", arg: str = ""):
         "PATH": "/usr/local/bin:/usr/bin:/bin"
     }
 
-    kwargs = {"env": env, "capture_output": True, "text": True, "timeout": 0.4}
-    if os.getuid() == 0:
-        kwargs["user"] = uid
-        kwargs["group"] = gid
-
     cmd = [
         "busctl", "--user", "call",
         "org.kde.keyboard", "/Layouts", "org.kde.KeyboardLayouts",
@@ -354,6 +300,11 @@ def call_kde_dbus(member: str, sig: str = "", arg: str = ""):
     ]
     if sig and arg:
         cmd.extend([sig, arg])
+
+    kwargs = {"env": env, "capture_output": True, "text": True, "timeout": 0.4}
+    if os.getuid() == 0:
+        kwargs["user"] = uid
+        kwargs["group"] = gid
 
     try:
         res = subprocess.run(cmd, **kwargs)
@@ -373,226 +324,6 @@ def call_kde_dbus(member: str, sig: str = "", arg: str = ""):
         pass
 
     return False, ""
-
-def open_x11_display(dpy_str: str = ":0"):
-    if not libX11:
-        return None
-
-    username, uid, gid, homedir = get_user_info()
-    candidates = []
-    for p in Path(f"/run/user/{uid}").glob("xauth*"):
-        candidates.append(str(p))
-    for p in Path("/run/user").glob("*/xauth*"):
-        candidates.append(str(p))
-    for p in Path("/tmp").glob("xauth*"):
-        candidates.append(str(p))
-    for p in Path("/home").glob("*/.Xauthority"):
-        candidates.append(str(p))
-    candidates.append(f"{homedir}/.Xauthority")
-
-    current_xauth = os.environ.get("XAUTHORITY")
-    if current_xauth:
-        candidates.insert(0, current_xauth)
-
-    for xauth in candidates:
-        if not os.path.exists(xauth):
-            continue
-        try:
-            if libc:
-                libc.setenv(b"XAUTHORITY", xauth.encode("utf-8"), 1)
-            os.environ["XAUTHORITY"] = xauth
-            dpy = libX11.XOpenDisplay(dpy_str.encode("utf-8"))
-            if dpy:
-                return dpy
-        except Exception:
-            pass
-
-    return None
-
-def get_kde_target_layout(lang: str) -> int:
-    global kde_layout_map
-    try:
-        ok, out = call_kde_dbus("getLayoutsList")
-        if ok and "a(sss)" in out:
-            import re
-            matches = re.findall(r"\"([^\"]*)\"", out)
-            layouts = [matches[i].lower() for i in range(0, len(matches), 3)]
-            mapping = {}
-            for idx, l in enumerate(layouts):
-                if l.startswith("us") or l.startswith("en"):
-                    mapping["us"] = idx
-                elif l.startswith("ru"):
-                    mapping["ru"] = idx
-            if "us" in mapping:
-                kde_layout_map["us"] = mapping["us"]
-            if "ru" in mapping:
-                kde_layout_map["ru"] = mapping["ru"]
-    except Exception:
-        pass
-    return kde_layout_map.get(lang, 1 if lang == "ru" else 0)
-
-def is_gamescope_running() -> bool:
-    try:
-        res = subprocess.run(["pgrep", "-x", "gamescope"], capture_output=True, timeout=0.2)
-        return res.returncode == 0
-    except Exception:
-        return False
-
-def get_active_x11_group() -> int:
-    if not libX11:
-        return None
-
-    displays = []
-    if os.environ.get("DISPLAY"):
-        displays.append(os.environ["DISPLAY"])
-    for d in [":0", ":1"]:
-        if d not in displays:
-            displays.append(d)
-
-    for dpy_str in displays:
-        dpy = open_x11_display(dpy_str)
-        if dpy:
-            try:
-                st = XkbStateRec()
-                if libX11.XkbGetState(dpy, 0x0100, ctypes.byref(st)) == 0:
-                    grp = st.group
-                    libX11.XCloseDisplay(dpy)
-                    return grp
-                libX11.XCloseDisplay(dpy)
-            except Exception:
-                pass
-    return None
-
-def set_x11_layout_group(lang: str) -> bool:
-    if not libX11:
-        return False
-
-    target_group = 1 if lang == "ru" else 0
-    displays = []
-    if os.environ.get("DISPLAY"):
-        displays.append(os.environ["DISPLAY"])
-    for d in [":0", ":1"]:
-        if d not in displays:
-            displays.append(d)
-
-    success = False
-    for dpy_str in displays:
-        dpy = open_x11_display(dpy_str)
-        if dpy:
-            try:
-                st = XkbStateRec()
-                if libX11.XkbGetState(dpy, 0x0100, ctypes.byref(st)) == 0:
-                    if st.group != target_group:
-                        libX11.XkbLockGroup(dpy, 0x0100, target_group)
-                        libX11.XFlush(dpy)
-                    success = True
-                libX11.XCloseDisplay(dpy)
-            except Exception as e:
-                logger.debug(f"X11 display {dpy_str} error: {e}")
-    return success
-
-def init_uinput_device():
-    global uinput_fd
-    if uinput_fd >= 0:
-        return
-    try:
-        fd = os.open("/dev/uinput", os.O_WRONLY | os.O_NONBLOCK)
-        fcntl.ioctl(fd, UI_SET_EVBIT, EV_KEY)
-        for k in range(1, 256):
-            fcntl.ioctl(fd, UI_SET_KEYBIT, k)
-
-        setup = UInputSetup()
-        setup.id.bustype = 0x03
-        setup.id.vendor = 0x28de
-        setup.id.product = 0x1205
-        setup.id.version = 1
-        setup.name = b"SteamDeck-OSK-Wayland-Bridge"
-
-        fcntl.ioctl(fd, UI_DEV_SETUP, setup)
-        fcntl.ioctl(fd, UI_DEV_CREATE)
-        uinput_fd = fd
-        logger.info("Pure ctypes UInput device initialized successfully.")
-    except Exception as e:
-        logger.error(f"Failed to create UInput device: {e}")
-
-def destroy_uinput_device():
-    global uinput_fd
-    if uinput_fd >= 0:
-        try:
-            fcntl.ioctl(uinput_fd, UI_DEV_DESTROY)
-            os.close(uinput_fd)
-        except Exception:
-            pass
-        uinput_fd = -1
-
-def emit_raw_event(type_, code, val):
-    global uinput_fd
-    if uinput_fd < 0:
-        init_uinput_device()
-    if uinput_fd < 0:
-        return
-    t = time.time()
-    sec = int(t)
-    usec = int((t - sec) * 1_000_000)
-    data = struct.pack("qqHHi", sec, usec, type_, code, val)
-    os.write(uinput_fd, data)
-
-def emit_keypress(keycode: int, shift: bool = False):
-    if shift:
-        emit_raw_event(EV_KEY, KEY_LEFTSHIFT, 1)
-        emit_raw_event(EV_SYN, SYN_REPORT, 0)
-        time.sleep(0.005)
-
-    emit_raw_event(EV_KEY, keycode, 1)
-    emit_raw_event(EV_SYN, SYN_REPORT, 0)
-    time.sleep(0.01)
-    emit_raw_event(EV_KEY, keycode, 0)
-    emit_raw_event(EV_SYN, SYN_REPORT, 0)
-
-    if shift:
-        time.sleep(0.005)
-        emit_raw_event(EV_KEY, KEY_LEFTSHIFT, 0)
-        emit_raw_event(EV_SYN, SYN_REPORT, 0)
-
-def emit_alt_shift():
-    emit_raw_event(EV_KEY, KEY_LEFTALT, 1)
-    emit_raw_event(EV_KEY, KEY_LEFTSHIFT, 1)
-    emit_raw_event(EV_SYN, SYN_REPORT, 0)
-    time.sleep(0.005)
-    emit_raw_event(EV_KEY, KEY_LEFTSHIFT, 0)
-    emit_raw_event(EV_KEY, KEY_LEFTALT, 0)
-    emit_raw_event(EV_SYN, SYN_REPORT, 0)
-    time.sleep(0.02)
-
-def sync_layout(lang: str):
-    global current_cached_kde_layout, current_active_language, gamescope_wayland_layout
-    target_idx = 1 if (lang == "ru" or lang == 1) else 0
-    lang_str = "ru" if target_idx == 1 else "us"
-
-    in_gamescope = is_gamescope_running()
-
-    if in_gamescope:
-        # Game Mode (Gamescope Wayland)
-        set_x11_layout_group(lang_str)
-        if gamescope_wayland_layout != target_idx:
-            logger.info(f"Gamescope: switching layout from {gamescope_wayland_layout} to {target_idx} ({lang_str}) via Alt+Shift")
-            emit_alt_shift()
-            gamescope_wayland_layout = target_idx
-        current_active_language = lang_str
-    else:
-        # Desktop Mode (KDE Plasma Desktop)
-        current_active_language = lang_str
-        try:
-            kde_target = get_kde_target_layout(lang_str)
-            if current_cached_kde_layout != kde_target:
-                ok, out = call_kde_dbus("setLayout", "u", str(kde_target))
-                if ok:
-                    current_cached_kde_layout = kde_target
-                    logger.info(f"KDE DBus: setLayout({kde_target}) -> {lang_str}")
-                    time.sleep(0.02)
-        except Exception as e:
-            logger.debug(f"KDE layout sync error: {e}")
-        set_x11_layout_group(lang_str)
 
 def auto_setup_system_xkb():
     try:
@@ -666,33 +397,96 @@ def auto_setup_system_xkb():
     except Exception as e:
         logger.warning(f"Could not auto-setup XKB: {e}")
 
+def sync_layout(target_layout: int):
+    global current_cached_kde_layout, gamescope_active_layout
+
+    # 1. Desktop Mode (KDE Plasma DBus)
+    ok, out = call_kde_dbus("setLayout", "u", str(target_layout))
+    if ok:
+        if current_cached_kde_layout != target_layout:
+            current_cached_kde_layout = target_layout
+            time.sleep(0.035)
+            logger.info(f"Switched KDE layout to {target_layout}")
+        return
+
+    # 2. Game Mode (Gamescope Wayland)
+    if gamescope_active_layout != target_layout:
+        emit_raw_event(EV_KEY, KEY_LEFTALT, 1)
+        emit_raw_event(EV_KEY, KEY_LEFTSHIFT, 1)
+        emit_raw_event(EV_SYN, SYN_REPORT, 0)
+        time.sleep(0.005)
+        emit_raw_event(EV_KEY, KEY_LEFTSHIFT, 0)
+        emit_raw_event(EV_KEY, KEY_LEFTALT, 0)
+        emit_raw_event(EV_SYN, SYN_REPORT, 0)
+        time.sleep(0.02)
+        gamescope_active_layout = target_layout
+        logger.info(f"Toggled Gamescope layout to {target_layout}")
+
+def init_uinput_device():
+    global uinput_fd
+    if uinput_fd >= 0:
+        return
+    try:
+        fd = os.open("/dev/uinput", os.O_WRONLY | os.O_NONBLOCK)
+        fcntl.ioctl(fd, UI_SET_EVBIT, EV_KEY)
+        for k in range(1, 256):
+            fcntl.ioctl(fd, UI_SET_KEYBIT, k)
+
+        setup = UInputSetup()
+        setup.id.bustype = 0x03
+        setup.id.vendor = 0x28de
+        setup.id.product = 0x1205
+        setup.id.version = 1
+        setup.name = b"SteamDeck-OSK-Wayland-Bridge"
+
+        fcntl.ioctl(fd, UI_DEV_SETUP, setup)
+        fcntl.ioctl(fd, UI_DEV_CREATE)
+        uinput_fd = fd
+        logger.info("Pure ctypes UInput device initialized successfully.")
+    except Exception as e:
+        logger.error(f"Failed to create UInput device: {e}")
+
+def destroy_uinput_device():
+    global uinput_fd
+    if uinput_fd >= 0:
+        try:
+            fcntl.ioctl(uinput_fd, UI_DEV_DESTROY)
+            os.close(uinput_fd)
+        except Exception:
+            pass
+        uinput_fd = -1
+
+def emit_raw_event(type_, code, val):
+    global uinput_fd
+    if uinput_fd < 0:
+        init_uinput_device()
+    if uinput_fd < 0:
+        return
+    t = time.time()
+    sec = int(t)
+    usec = int((t - sec) * 1_000_000)
+    data = struct.pack("qqHHi", sec, usec, type_, code, val)
+    os.write(uinput_fd, data)
+
+def emit_keypress(keycode: int, shift: bool = False):
+    if shift:
+        emit_raw_event(EV_KEY, KEY_LEFTSHIFT, 1)
+        emit_raw_event(EV_SYN, SYN_REPORT, 0)
+        time.sleep(0.005)
+
+    emit_raw_event(EV_KEY, keycode, 1)
+    emit_raw_event(EV_SYN, SYN_REPORT, 0)
+    time.sleep(0.01)
+    emit_raw_event(EV_KEY, keycode, 0)
+    emit_raw_event(EV_SYN, SYN_REPORT, 0)
+
+    if shift:
+        time.sleep(0.005)
+        emit_raw_event(EV_KEY, KEY_LEFTSHIFT, 0)
+        emit_raw_event(EV_SYN, SYN_REPORT, 0)
+
 
 class Plugin:
-    async def sync_layout(self, lang: str = "us"):
-        sync_layout(lang)
-        return {
-            "success": True,
-            "active_language": current_active_language,
-            "is_gamescope": is_gamescope_running(),
-            "gamescope_wayland_layout": gamescope_wayland_layout,
-            "x11_group": get_active_x11_group()
-        }
-
-    async def reset_game_mode(self):
-        global gamescope_wayland_layout, current_active_language
-        gamescope_wayland_layout = 0
-        current_active_language = "us"
-        sync_layout("us")
-        return {"success": True, "active_language": "us"}
-
-    async def get_active_layout(self):
-        return {
-            "active_language": current_active_language,
-            "is_gamescope": is_gamescope_running(),
-            "gamescope_wayland_layout": gamescope_wayland_layout,
-            "x11_group": get_active_x11_group()
-        }
-
     async def send_key(self, text: str = ""):
         global last_key_time, last_key_text
         if not text:
@@ -712,24 +506,21 @@ class Plugin:
             if ch in SPECIAL_KEYS:
                 emit_keypress(SPECIAL_KEYS[ch], False)
             elif ch in RU_TO_EVDEV:
-                sync_layout("ru")
+                sync_layout(1)
                 keycode, shift = RU_TO_EVDEV[ch]
                 emit_keypress(keycode, shift)
             elif ch in CHAR_TO_EVDEV:
-                sync_layout("us")
+                sync_layout(0)
                 keycode, shift = CHAR_TO_EVDEV[ch]
                 emit_keypress(keycode, shift)
-            elif current_active_language == "ru" and ch in RU_SYMBOLS:
-                sync_layout("ru")
+            elif current_cached_kde_layout == 1 and ch in RU_SYMBOLS:
+                sync_layout(1)
                 keycode, shift = RU_SYMBOLS[ch]
                 emit_keypress(keycode, shift)
 
         return {"success": True}
 
     async def _main(self):
-        global current_active_language, gamescope_wayland_layout
-        current_active_language = "us"
-        gamescope_wayland_layout = 0
         auto_setup_system_xkb()
         init_uinput_device()
         logger.info("Alt_Shift plugin backend loaded cleanly.")
