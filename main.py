@@ -284,7 +284,6 @@ uinput_fd = -1
 current_cached_kde_layout = -1
 current_active_language = "us"
 gamescope_wayland_layout = 0
-last_is_desktop = None
 last_key_time = 0
 last_key_text = None
 kde_layout_map = {}
@@ -432,15 +431,10 @@ def get_kde_target_layout(lang: str) -> int:
         pass
     return kde_layout_map.get(lang, 1 if lang == "ru" else 0)
 
-def is_desktop_mode() -> bool:
+def is_gamescope_running() -> bool:
     try:
-        res = subprocess.run(["pgrep", "-f", "plasmashell|kwin_x11|kwin_wayland|kwin|startplasma"], capture_output=True, timeout=0.2)
-        if res.returncode == 0:
-            return True
-        res_gs = subprocess.run(["pgrep", "-x", "gamescope"], capture_output=True, timeout=0.2)
-        if res_gs.returncode == 0:
-            return False
-        return True
+        res = subprocess.run(["pgrep", "-x", "gamescope"], capture_output=True, timeout=0.2)
+        return res.returncode == 0
     except Exception:
         return False
 
@@ -571,20 +565,22 @@ def emit_alt_shift():
     time.sleep(0.02)
 
 def sync_layout(lang: str):
-    global current_cached_kde_layout, current_active_language, gamescope_wayland_layout, last_is_desktop
+    global current_cached_kde_layout, current_active_language, gamescope_wayland_layout
     target_idx = 1 if (lang == "ru" or lang == 1) else 0
     lang_str = "ru" if target_idx == 1 else "us"
 
-    in_desktop = is_desktop_mode()
+    in_gamescope = is_gamescope_running()
 
-    if last_is_desktop is not None and last_is_desktop != in_desktop:
-        current_cached_kde_layout = -1
-        gamescope_wayland_layout = 0
-        current_active_language = "us"
-        logger.info(f"Mode changed: Desktop={in_desktop}. Gamescope Wayland state reset to 0 (US)")
-    last_is_desktop = in_desktop
-
-    if in_desktop:
+    if in_gamescope:
+        # Game Mode (Gamescope Wayland)
+        set_x11_layout_group(lang_str)
+        if gamescope_wayland_layout != target_idx:
+            logger.info(f"Gamescope: switching layout from {gamescope_wayland_layout} to {target_idx} ({lang_str}) via Alt+Shift")
+            emit_alt_shift()
+            gamescope_wayland_layout = target_idx
+        current_active_language = lang_str
+    else:
+        # Desktop Mode (KDE Plasma Desktop)
         current_active_language = lang_str
         try:
             kde_target = get_kde_target_layout(lang_str)
@@ -597,13 +593,6 @@ def sync_layout(lang: str):
         except Exception as e:
             logger.debug(f"KDE layout sync error: {e}")
         set_x11_layout_group(lang_str)
-    else:
-        set_x11_layout_group(lang_str)
-        if gamescope_wayland_layout != target_idx:
-            logger.info(f"Gamescope: switching Wayland layout from {gamescope_wayland_layout} to {target_idx} ({lang_str})")
-            emit_alt_shift()
-            gamescope_wayland_layout = target_idx
-        current_active_language = lang_str
 
 def auto_setup_system_xkb():
     try:
@@ -684,7 +673,7 @@ class Plugin:
         return {
             "success": True,
             "active_language": current_active_language,
-            "is_desktop": is_desktop_mode(),
+            "is_gamescope": is_gamescope_running(),
             "gamescope_wayland_layout": gamescope_wayland_layout,
             "x11_group": get_active_x11_group()
         }
@@ -699,7 +688,7 @@ class Plugin:
     async def get_active_layout(self):
         return {
             "active_language": current_active_language,
-            "is_desktop": is_desktop_mode(),
+            "is_gamescope": is_gamescope_running(),
             "gamescope_wayland_layout": gamescope_wayland_layout,
             "x11_group": get_active_x11_group()
         }
