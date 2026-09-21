@@ -1,11 +1,11 @@
-# Alt+Shift
+# Alt_Shift
 
 [![Decky Loader Россия](https://img.shields.io/badge/Decky_Loader-Россия-00adff?style=for-the-badge&logo=steamdeck&logoColor=white)](https://deckyloader.ru/)
 [![License](https://img.shields.io/badge/License-BSD_3--Clause-blue?style=for-the-badge)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-SteamOS_%7C_Arch_Wayland-orange?style=for-the-badge)](https://archlinux.org/)
-[![Version](https://img.shields.io/badge/Version-0.0.1-green?style=for-the-badge)](package.json)
+[![Version](https://img.shields.io/badge/Version-0.0.2-green?style=for-the-badge)](package.json)
 
-Плагин для каталога **[Decky Loader Россия](https://deckyloader.ru/)** ([репозиторий на GitFlic](https://gitflic.ru/project/rosakodu/decky-loader)), полностью исправляющий ввод с виртуальной экранной клавиатуры Steam (OSK) в окружении **Wayland** (KDE Plasma Desktop Mode) и **Game Mode (Gamescope)** на SteamOS и других arch-based дистрибутивах.
+Плагин для каталога **[Decky Loader Россия](https://deckyloader.ru/)** ([репозиторий на GitFlic](https://gitflic.ru/project/rosakodu/decky-loader)), полностью исправляющий ввод с виртуальной экранной клавиатуры Steam (OSK) в окружении **Wayland / X11** (KDE Plasma Desktop Mode) и **Game Mode (Gamescope)** на SteamOS и других arch-based дистрибутивах.
 
 ---
 
@@ -35,10 +35,10 @@
 
 ## 📦 Установка
 
-1. Скачайте релизный архив **`Alt-Shift-v0.0.1.zip`** со страницы [Релизов](https://gitflic.ru/project/viktorkoval1997/alt_shift/release).
+1. Скачайте релизный архив **`Alt_Shift-v0.0.2.zip`** со страницы [Релизов](https://gitflic.ru/project/viktorkoval1997/alt_shift/release).
 2. На Steam Deck откройте меню **Decky Loader** (кнопка `...`).
 3. Нажмите на **значок шестерёнки** (Настройки Decky Loader) -> вкладка **Разработчик (Developer)**.
-4. Выберите **«Установить плагин из ZIP»** и укажите скачанный архив `Alt-Shift-v0.0.1.zip`.
+4. Выберите **«Установить плагин из ZIP»** и укажите скачанный архив `Alt_Shift-v0.0.2.zip`.
 
 ---
 
@@ -58,10 +58,10 @@ pnpm install
 pnpm run build
 
 # Упаковать релизный ZIP-архив
-rm -rf /tmp/decky-pack && mkdir -p /tmp/decky-pack/Alt-Shift/dist
-cp dist/index.js /tmp/decky-pack/Alt-Shift/dist/
-cp main.py plugin.json package.json README.md LICENSE /tmp/decky-pack/Alt-Shift/
-(cd /tmp/decky-pack && zip -r ~/Alt-Shift-v0.0.1.zip Alt-Shift)
+rm -rf /tmp/decky-pack && mkdir -p /tmp/decky-pack/Alt_Shift/dist
+cp dist/index.js /tmp/decky-pack/Alt_Shift/dist/
+cp main.py plugin.json package.json README.md LICENSE /tmp/decky-pack/Alt_Shift/
+(cd /tmp/decky-pack && zip -r ~/Alt_Shift-v0.0.2.zip Alt_Shift)
 ```
 
 ---
@@ -69,7 +69,7 @@ cp main.py plugin.json package.json README.md LICENSE /tmp/decky-pack/Alt-Shift/
 ## 📁 Структура проекта
 
 ```text
-Alt-Shift/
+Alt_Shift/
 ├── dist/
 │   └── index.js           # Скомпилированный фронтенд (Decky IIFE bundle)
 ├── src/

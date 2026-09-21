@@ -89,7 +89,7 @@
                                       if (val && typeof val === "object" && val.currentLayout !== 0) {
                                           val.currentLayout = 0;
                                           ls.setItem(key, JSON.stringify(val));
-                                          console.log("[Alt+Shift] Reset Steam OSK layout storage to QWERTY (0)");
+                                          console.log("[Alt_Shift] Reset Steam OSK layout storage to QWERTY (0)");
                                       }
                                   }
                               }
@@ -250,14 +250,14 @@
                       }
                   }
                   catch (err) {
-                      console.error("[Alt+Shift] sendText error:", err);
+                      console.error("[Alt_Shift] sendText error:", err);
                   }
               };
-              console.log("[Alt+Shift] Installed KeyboardSendText hook successfully.");
+              console.log("[Alt_Shift] Installed KeyboardSendText hook successfully.");
           }
       }
       catch (e) {
-          console.error("[Alt+Shift] Hook installation failed:", e);
+          console.error("[Alt_Shift] Hook installation failed:", e);
       }
   }
   function uninstallHook() {
@@ -266,11 +266,11 @@
           const steamClient = window.SteamClient;
           if (window._orig_sendText_native && steamClient?.Input) {
               steamClient.Input.ControllerKeyboardSendText = window._orig_sendText_native;
-              console.log("[Alt+Shift] Uninstalled hook.");
+              console.log("[Alt_Shift] Uninstalled hook.");
           }
       }
       catch (e) {
-          console.error("[Alt+Shift] Uninstall error:", e);
+          console.error("[Alt_Shift] Uninstall error:", e);
       }
   }
   const Content = () => {
@@ -286,7 +286,7 @@
       installHook(serverApi);
       startLayoutObserver(serverApi);
       return {
-          title: React__default["default"].createElement("div", { className: deckyFrontendLib.staticClasses.Title }, "Alt+Shift"),
+          title: React__default["default"].createElement("div", { className: deckyFrontendLib.staticClasses.Title }, "Alt_Shift"),
           content: React__default["default"].createElement(Content, null),
           icon: React__default["default"].createElement(FaKeyboard, null),
           onDismount() {

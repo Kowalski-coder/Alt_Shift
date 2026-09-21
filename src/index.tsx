@@ -34,7 +34,7 @@ function resetKeyboardLayoutToEnglish() {
                   if (val && typeof val === "object" && val.currentLayout !== 0) {
                     val.currentLayout = 0;
                     ls.setItem(key, JSON.stringify(val));
-                    console.log("[Alt+Shift] Reset Steam OSK layout storage to QWERTY (0)");
+                    console.log("[Alt_Shift] Reset Steam OSK layout storage to QWERTY (0)");
                   }
                 }
               } catch (e) {}
@@ -185,13 +185,13 @@ function installHook(serverApi: ServerAPI) {
             serverApi.callPluginMethod("send_key", { text });
           }
         } catch (err) {
-          console.error("[Alt+Shift] sendText error:", err);
+          console.error("[Alt_Shift] sendText error:", err);
         }
       };
-      console.log("[Alt+Shift] Installed KeyboardSendText hook successfully.");
+      console.log("[Alt_Shift] Installed KeyboardSendText hook successfully.");
     }
   } catch (e) {
-    console.error("[Alt+Shift] Hook installation failed:", e);
+    console.error("[Alt_Shift] Hook installation failed:", e);
   }
 }
 
@@ -201,10 +201,10 @@ function uninstallHook() {
     const steamClient = (window as any).SteamClient;
     if ((window as any)._orig_sendText_native && steamClient?.Input) {
       steamClient.Input.ControllerKeyboardSendText = (window as any)._orig_sendText_native;
-      console.log("[Alt+Shift] Uninstalled hook.");
+      console.log("[Alt_Shift] Uninstalled hook.");
     }
   } catch (e) {
-    console.error("[Alt+Shift] Uninstall error:", e);
+    console.error("[Alt_Shift] Uninstall error:", e);
   }
 }
 
@@ -232,7 +232,7 @@ export default definePlugin((serverApi: ServerAPI) => {
   startLayoutObserver(serverApi);
 
   return {
-    title: <div className={staticClasses.Title}>Alt+Shift</div>,
+    title: <div className={staticClasses.Title}>Alt_Shift</div>,
     content: <Content />,
     icon: <FaKeyboard />,
     onDismount() {

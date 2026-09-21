@@ -14,7 +14,7 @@ try:
 except ImportError:
     import logging
     logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger("Alt-Shift")
+    logger = logging.getLogger("Alt_Shift")
 
 # Linux uinput ioctl constants
 UI_DEV_CREATE = 0x5501
@@ -817,8 +817,8 @@ class Plugin:
         gamescope_wayland_layout = 0
         auto_setup_system_xkb()
         init_uinput_device()
-        logger.info("Alt+Shift plugin backend loaded cleanly.")
+        logger.info("Alt_Shift plugin backend loaded cleanly.")
 
     async def _unload(self):
         destroy_uinput_device()
-        logger.info("Alt+Shift plugin backend unloaded.")
+        logger.info("Alt_Shift plugin backend unloaded.")
