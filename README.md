@@ -35,22 +35,10 @@
 
 ## 📦 Установка
 
-### Способ 1: Установка готового ZIP через Decky Loader (Рекомендуется)
-
 1. Скачайте релизный архив **`Wayland-OSK-Fix-v1.0.0.zip`**.
 2. На Steam Deck откройте меню **Decky Loader** (кнопка `...`).
 3. Нажмите на **значок шестерёнки** (Настройки Decky Loader) -> вкладка **Разработчик (Developer)**.
 4. Выберите **«Установить плагин из ZIP»** и укажите скачанный архив `Wayland-OSK-Fix-v1.0.0.zip`.
-
-### Способ 2: Ручная установка в систему
-
-```bash
-# Распаковать архив в папку плагинов Decky Loader
-sudo unzip Wayland-OSK-Fix-v1.0.0.zip -d /home/viktor/homebrew/plugins/
-
-# Перезапустить сервис загрузчика плагинов
-sudo systemctl restart plugin_loader
-```
 
 ---
 
