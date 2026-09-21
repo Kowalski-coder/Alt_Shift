@@ -358,6 +358,11 @@ def call_kde_dbus(member: str, sig: str = "", arg: str = ""):
         "PATH": "/usr/local/bin:/usr/bin:/bin"
     }
 
+    kwargs = {"env": env, "capture_output": True, "text": True, "timeout": 0.4}
+    if os.getuid() == 0:
+        kwargs["user"] = uid
+        kwargs["group"] = gid
+
     cmd = [
         "busctl", "--user", "call",
         "org.kde.keyboard", "/Layouts", "org.kde.KeyboardLayouts",
@@ -366,18 +371,24 @@ def call_kde_dbus(member: str, sig: str = "", arg: str = ""):
     if sig and arg:
         cmd.extend([sig, arg])
 
-    kwargs = {"env": env, "capture_output": True, "text": True, "timeout": 0.4}
-    if os.getuid() == 0:
-        kwargs["user"] = uid
-        kwargs["group"] = gid
-
     try:
         res = subprocess.run(cmd, **kwargs)
         if res.returncode == 0:
             return True, res.stdout.strip()
-        return False, res.stderr.strip()
-    except Exception as e:
-        return False, str(e)
+    except Exception:
+        pass
+
+    try:
+        qcmd = ["qdbus", "org.kde.keyboard", "/Layouts", member]
+        if arg:
+            qcmd.append(arg)
+        res = subprocess.run(qcmd, **kwargs)
+        if res.returncode == 0:
+            return True, res.stdout.strip()
+    except Exception:
+        pass
+
+    return False, ""
 
 def open_x11_display(dpy_str: str = ":0"):
     if not libX11:
@@ -440,8 +451,13 @@ def get_kde_target_layout(lang: str) -> int:
 
 def is_desktop_mode() -> bool:
     try:
-        res = subprocess.run(["pgrep", "-x", "kwin_wayland"], capture_output=True, timeout=0.2)
-        return res.returncode == 0
+        res = subprocess.run(["pgrep", "-f", "plasmashell|kwin_x11|kwin_wayland|kwin|startplasma"], capture_output=True, timeout=0.2)
+        if res.returncode == 0:
+            return True
+        res_gs = subprocess.run(["pgrep", "-x", "gamescope"], capture_output=True, timeout=0.2)
+        if res_gs.returncode == 0:
+            return False
+        return True
     except Exception:
         return False
 
