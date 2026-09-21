@@ -27,6 +27,9 @@ EV_SYN = 0x00
 EV_KEY = 0x01
 SYN_REPORT = 0
 
+KEY_LEFTSHIFT = 42
+KEY_LEFTALT = 56
+
 class InputId(ctypes.Structure):
     _fields_ = [
         ("bustype", ctypes.c_uint16),
@@ -42,7 +45,6 @@ class UInputSetup(ctypes.Structure):
         ("ff_effects_max", ctypes.c_uint32),
     ]
 
-# C runtime libc setenv
 libc = None
 try:
     libc = ctypes.CDLL("libc.so.6")
@@ -90,219 +92,12 @@ try:
 except Exception as e:
     logger.warning(f"Could not load libX11.so.6: {e}")
 
-# Linux Keycodes
-KEY_ESC = 1
-KEY_1 = 2
-KEY_2 = 3
-KEY_3 = 4
-KEY_4 = 5
-KEY_5 = 6
-KEY_6 = 7
-KEY_7 = 8
-KEY_8 = 9
-KEY_9 = 10
-KEY_0 = 11
-KEY_MINUS = 12
-KEY_EQUAL = 13
-KEY_BACKSPACE = 14
-KEY_TAB = 15
-KEY_Q = 16
-KEY_W = 17
-KEY_E = 18
-KEY_R = 19
-KEY_T = 20
-KEY_Y = 21
-KEY_U = 22
-KEY_I = 23
-KEY_O = 24
-KEY_P = 25
-KEY_LEFTBRACE = 26
-KEY_RIGHTBRACE = 27
-KEY_ENTER = 28
-KEY_LEFTCTRL = 29
-KEY_A = 30
-KEY_S = 31
-KEY_D = 32
-KEY_F = 33
-KEY_G = 34
-KEY_H = 35
-KEY_J = 36
-KEY_K = 37
-KEY_L = 38
-KEY_SEMICOLON = 39
-KEY_APOSTROPHE = 40
-KEY_GRAVE = 41
-KEY_LEFTSHIFT = 42
-KEY_BACKSLASH = 43
-KEY_Z = 44
-KEY_X = 45
-KEY_C = 46
-KEY_V = 47
-KEY_B = 48
-KEY_N = 49
-KEY_M = 50
-KEY_COMMA = 51
-KEY_DOT = 52
-KEY_SLASH = 53
-KEY_LEFTALT = 56
-KEY_SPACE = 57
-KEY_UP = 103
-KEY_LEFT = 105
-KEY_RIGHT = 106
-KEY_DOWN = 108
-
-LATIN_TO_EVDEV = {
-    'a': (KEY_A, False), 'b': (KEY_B, False), 'c': (KEY_C, False),
-    'd': (KEY_D, False), 'e': (KEY_E, False), 'f': (KEY_F, False),
-    'g': (KEY_G, False), 'h': (KEY_H, False), 'i': (KEY_I, False),
-    'j': (KEY_J, False), 'k': (KEY_K, False), 'l': (KEY_L, False),
-    'm': (KEY_M, False), 'n': (KEY_N, False), 'o': (KEY_O, False),
-    'p': (KEY_P, False), 'q': (KEY_Q, False), 'r': (KEY_R, False),
-    's': (KEY_S, False), 't': (KEY_T, False), 'u': (KEY_U, False),
-    'v': (KEY_V, False), 'w': (KEY_W, False), 'x': (KEY_X, False),
-    'y': (KEY_Y, False), 'z': (KEY_Z, False),
-
-    'A': (KEY_A, True), 'B': (KEY_B, True), 'C': (KEY_C, True),
-    'D': (KEY_D, True), 'E': (KEY_E, True), 'F': (KEY_F, True),
-    'G': (KEY_G, True), 'H': (KEY_H, True), 'I': (KEY_I, True),
-    'J': (KEY_J, True), 'K': (KEY_K, True), 'L': (KEY_L, True),
-    'M': (KEY_M, True), 'N': (KEY_N, True), 'O': (KEY_O, True),
-    'P': (KEY_P, True), 'Q': (KEY_Q, True), 'R': (KEY_R, True),
-    'S': (KEY_S, True), 'T': (KEY_T, True), 'U': (KEY_U, True),
-    'V': (KEY_V, True), 'W': (KEY_W, True), 'X': (KEY_X, True),
-    'Y': (KEY_Y, True), 'Z': (KEY_Z, True),
-}
-
-RU_TO_EVDEV = {
-    'й': (KEY_Q, False), 'Й': (KEY_Q, True),
-    'ц': (KEY_W, False), 'Ц': (KEY_W, True),
-    'у': (KEY_E, False), 'У': (KEY_E, True),
-    'к': (KEY_R, False), 'К': (KEY_R, True),
-    'е': (KEY_T, False), 'Е': (KEY_T, True),
-    'н': (KEY_Y, False), 'Н': (KEY_Y, True),
-    'г': (KEY_U, False), 'Г': (KEY_U, True),
-    'ш': (KEY_I, False), 'Ш': (KEY_I, True),
-    'щ': (KEY_O, False), 'Щ': (KEY_O, True),
-    'з': (KEY_P, False), 'З': (KEY_P, True),
-    'х': (KEY_LEFTBRACE, False), 'Х': (KEY_LEFTBRACE, True),
-    'ъ': (KEY_RIGHTBRACE, False), 'Ъ': (KEY_RIGHTBRACE, True),
-    'ф': (KEY_A, False), 'Ф': (KEY_A, True),
-    'ы': (KEY_S, False), 'Ы': (KEY_S, True),
-    'в': (KEY_D, False), 'В': (KEY_D, True),
-    'а': (KEY_F, False), 'А': (KEY_F, True),
-    'п': (KEY_G, False), 'П': (KEY_G, True),
-    'р': (KEY_H, False), 'Р': (KEY_H, True),
-    'о': (KEY_J, False), 'О': (KEY_J, True),
-    'л': (KEY_K, False), 'Л': (KEY_K, True),
-    'д': (KEY_L, False), 'Д': (KEY_L, True),
-    'ж': (KEY_SEMICOLON, False), 'Ж': (KEY_SEMICOLON, True),
-    'э': (KEY_APOSTROPHE, False), 'Э': (KEY_APOSTROPHE, True),
-    'я': (KEY_Z, False), 'Я': (KEY_Z, True),
-    'ч': (KEY_X, False), 'Ч': (KEY_X, True),
-    'с': (KEY_C, False), 'С': (KEY_C, True),
-    'м': (KEY_V, False), 'М': (KEY_V, True),
-    'и': (KEY_B, False), 'И': (KEY_B, True),
-    'т': (KEY_N, False), 'Т': (KEY_N, True),
-    'ь': (KEY_M, False), 'Ь': (KEY_M, True),
-    'б': (KEY_COMMA, False), 'Б': (KEY_COMMA, True),
-    'ю': (KEY_DOT, False), 'Ю': (KEY_DOT, True),
-    'ё': (KEY_GRAVE, False), 'Ё': (KEY_GRAVE, True),
-}
-
-NEUTRAL_KEYS = {
-    ' ': (KEY_SPACE, False),
-    '\t': (KEY_TAB, False),
-    'Tab': (KEY_TAB, False),
-    '\r': (KEY_ENTER, False),
-    '\n': (KEY_ENTER, False),
-    'Enter': (KEY_ENTER, False),
-    '\x03': (KEY_ENTER, False),
-    '\x0a': (KEY_ENTER, False),
-    '\x0d': (KEY_ENTER, False),
-    '\x02': (KEY_BACKSPACE, False),
-    '\x08': (KEY_BACKSPACE, False),
-    '\x7f': (KEY_BACKSPACE, False),
-    'Backspace': (KEY_BACKSPACE, False),
-    'Escape': (KEY_ESC, False),
-    '\x1b': (KEY_ESC, False),
-    'ArrowLeft': (KEY_LEFT, False),
-    '\x04': (KEY_LEFT, False),
-    'ArrowRight': (KEY_RIGHT, False),
-    '\x05': (KEY_RIGHT, False),
-    'ArrowUp': (KEY_UP, False),
-    '\x06': (KEY_UP, False),
-    'ArrowDown': (KEY_DOWN, False),
-    '\x07': (KEY_DOWN, False),
-
-    '1': (KEY_1, False), '2': (KEY_2, False), '3': (KEY_3, False),
-    '4': (KEY_4, False), '5': (KEY_5, False), '6': (KEY_6, False),
-    '7': (KEY_7, False), '8': (KEY_8, False), '9': (KEY_9, False),
-    '0': (KEY_0, False),
-}
-
-RU_SYMBOLS = {
-    '.': (KEY_SLASH, False),
-    ',': (KEY_SLASH, True),
-    '?': (KEY_7, True),
-    '!': (KEY_1, True),
-    '"': (KEY_2, True),
-    '№': (KEY_3, True),
-    ';': (KEY_4, True),
-    '%': (KEY_5, True),
-    ':': (KEY_6, True),
-    '*': (KEY_8, True),
-    '(': (KEY_9, True),
-    ')': (KEY_0, True),
-    '_': (KEY_MINUS, True),
-    '-': (KEY_MINUS, False),
-    '=': (KEY_EQUAL, False),
-    '+': (KEY_EQUAL, True),
-    '/': (KEY_BACKSLASH, True),
-    '\\': (KEY_BACKSLASH, False),
-}
-
-US_SYMBOLS = {
-    '.': (KEY_DOT, False),
-    ',': (KEY_COMMA, False),
-    '?': (KEY_SLASH, True),
-    '!': (KEY_1, True),
-    '"': (KEY_APOSTROPHE, True),
-    "'": (KEY_APOSTROPHE, False),
-    ';': (KEY_SEMICOLON, False),
-    ':': (KEY_SEMICOLON, True),
-    '-': (KEY_MINUS, False),
-    '_': (KEY_MINUS, True),
-    '=': (KEY_EQUAL, False),
-    '+': (KEY_EQUAL, True),
-    '[': (KEY_LEFTBRACE, False),
-    '{': (KEY_LEFTBRACE, True),
-    ']': (KEY_RIGHTBRACE, False),
-    '}': (KEY_RIGHTBRACE, True),
-    '/': (KEY_SLASH, False),
-    '\\': (KEY_BACKSLASH, False),
-    '|': (KEY_BACKSLASH, True),
-    '`': (KEY_GRAVE, False),
-    '~': (KEY_GRAVE, True),
-    '@': (KEY_2, True),
-    '#': (KEY_3, True),
-    '$': (KEY_4, True),
-    '%': (KEY_5, True),
-    '^': (KEY_6, True),
-    '&': (KEY_7, True),
-    '*': (KEY_8, True),
-    '(': (KEY_9, True),
-    ')': (KEY_0, True),
-    '<': (KEY_COMMA, True),
-    '>': (KEY_DOT, True),
-}
-
 uinput_fd = -1
 current_cached_kde_layout = -1
 current_active_language = "us"
 gamescope_wayland_layout = 0
-last_key_time = 0
-last_key_text = None
 last_is_desktop = None
+kde_layout_map = {}
 
 def get_user_info():
     username = os.environ.get("DECKY_USER")
@@ -425,8 +220,6 @@ def open_x11_display(dpy_str: str = ":0"):
 
     return None
 
-kde_layout_map = {}
-
 def get_kde_target_layout(lang: str) -> int:
     global kde_layout_map
     try:
@@ -508,26 +301,70 @@ def set_x11_layout_group(lang: str) -> bool:
                     if st.group != target_group:
                         libX11.XkbLockGroup(dpy, 0x0100, target_group)
                         libX11.XFlush(dpy)
-                        time.sleep(0.01)
                     success = True
                 libX11.XCloseDisplay(dpy)
             except Exception as e:
                 logger.debug(f"X11 display {dpy_str} error: {e}")
     return success
 
+def init_uinput_device():
+    global uinput_fd
+    if uinput_fd >= 0:
+        return
+    try:
+        fd = os.open("/dev/uinput", os.O_WRONLY | os.O_NONBLOCK)
+        fcntl.ioctl(fd, UI_SET_EVBIT, EV_KEY)
+        fcntl.ioctl(fd, UI_SET_KEYBIT, KEY_LEFTALT)
+        fcntl.ioctl(fd, UI_SET_KEYBIT, KEY_LEFTSHIFT)
+
+        setup = UInputSetup()
+        setup.id.bustype = 0x03
+        setup.id.vendor = 0x28de
+        setup.id.product = 0x1205
+        setup.id.version = 1
+        setup.name = b"SteamDeck-AltShift-Trigger"
+
+        fcntl.ioctl(fd, UI_DEV_SETUP, setup)
+        fcntl.ioctl(fd, UI_DEV_CREATE)
+        uinput_fd = fd
+        logger.info("UInput layout switch trigger initialized.")
+    except Exception as e:
+        logger.error(f"Failed to create UInput trigger: {e}")
+
+def destroy_uinput_device():
+    global uinput_fd
+    if uinput_fd >= 0:
+        try:
+            fcntl.ioctl(uinput_fd, UI_DEV_DESTROY)
+            os.close(uinput_fd)
+        except Exception:
+            pass
+        uinput_fd = -1
+
+def emit_raw_event(type_, code, val):
+    global uinput_fd
+    if uinput_fd < 0:
+        init_uinput_device()
+    if uinput_fd < 0:
+        return
+    t = time.time()
+    sec = int(t)
+    usec = int((t - sec) * 1_000_000)
+    data = struct.pack("qqHHi", sec, usec, type_, code, val)
+    os.write(uinput_fd, data)
+
 def emit_alt_shift():
     emit_raw_event(EV_KEY, KEY_LEFTALT, 1)
     emit_raw_event(EV_SYN, SYN_REPORT, 0)
-    time.sleep(0.01)
+    time.sleep(0.005)
     emit_raw_event(EV_KEY, KEY_LEFTSHIFT, 1)
     emit_raw_event(EV_SYN, SYN_REPORT, 0)
     time.sleep(0.01)
     emit_raw_event(EV_KEY, KEY_LEFTSHIFT, 0)
     emit_raw_event(EV_SYN, SYN_REPORT, 0)
-    time.sleep(0.01)
+    time.sleep(0.005)
     emit_raw_event(EV_KEY, KEY_LEFTALT, 0)
     emit_raw_event(EV_SYN, SYN_REPORT, 0)
-    time.sleep(0.02)
 
 def sync_layout(lang: str):
     global current_cached_kde_layout, current_active_language, gamescope_wayland_layout, last_is_desktop
@@ -570,9 +407,20 @@ def sync_layout(lang: str):
 
 def auto_setup_system_xkb():
     try:
+        # Cleanup any unwanted system config files
+        for bad_path in [
+            Path("/etc/X11/xorg.conf.d/00-keyboard.conf"),
+            Path("/etc/environment.d/10-xkb.conf")
+        ]:
+            if bad_path.exists():
+                try:
+                    bad_path.unlink()
+                except Exception:
+                    pass
+
         username, uid, gid, homedir = get_user_info()
 
-        # 1. Setup user configurations in /home/*
+        # User configurations in /home/*
         for home in Path("/home").glob("*"):
             if home.is_dir() and not home.name.startswith("."):
                 try:
@@ -614,52 +462,10 @@ def auto_setup_system_xkb():
                             pass
                     kxkb_file.write_text(kxkb_content, encoding="utf-8")
                     os.chown(str(kxkb_file), u_uid, u_gid)
-
-                    # Hide KDE Plasma OSD popups (plasmarc)
-                    plasmarc = home / ".config" / "plasmarc"
-                    if plasmarc.exists():
-                        p_txt = plasmarc.read_text(encoding="utf-8", errors="ignore")
-                        if "[OSD]" not in p_txt:
-                            plasmarc.write_text("[OSD]\nEnabled=false\n\n" + p_txt, encoding="utf-8")
-                            os.chown(str(plasmarc), u_uid, u_gid)
                 except Exception as e:
                     logger.debug(f"User home config error: {e}")
 
-        # 2. System-wide environment fallbacks (/etc)
-        try:
-            env_path = Path("/etc/environment")
-            if env_path.exists():
-                lines = env_path.read_text(encoding="utf-8", errors="ignore").splitlines()
-                new_lines = [l for l in lines if not l.strip().startswith(("XKB_DEFAULT_LAYOUT=", "XKB_DEFAULT_OPTIONS=", "XKB_DEFAULT_VARIANT=")) and l.strip()]
-                new_lines.append("XKB_DEFAULT_LAYOUT=us,ru")
-                new_lines.append("XKB_DEFAULT_OPTIONS=grp:alt_shift_toggle")
-                env_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
-        except Exception:
-            pass
-
-        try:
-            etc_env_d = Path("/etc/environment.d")
-            etc_env_d.mkdir(parents=True, exist_ok=True)
-            (etc_env_d / "10-xkb.conf").write_text("XKB_DEFAULT_LAYOUT=us,ru\nXKB_DEFAULT_OPTIONS=grp:alt_shift_toggle\n", encoding="utf-8")
-        except Exception:
-            pass
-
-        try:
-            xorg_conf = Path("/etc/X11/xorg.conf.d/00-keyboard.conf")
-            xorg_conf.parent.mkdir(parents=True, exist_ok=True)
-            xorg_conf.write_text(
-                'Section "InputClass"\n'
-                '        Identifier "system-keyboard"\n'
-                '        MatchIsKeyboard "on"\n'
-                '        Option "XkbLayout" "us,ru"\n'
-                '        Option "XkbOptions" "grp:alt_shift_toggle"\n'
-                'EndSection\n',
-                encoding="utf-8"
-            )
-        except Exception:
-            pass
-
-        # 3. Dynamic systemd user env & KWin reload
+        # Dynamic systemd user env & KWin reload
         user_env = {
             "HOME": homedir,
             "USER": username,
@@ -681,69 +487,6 @@ def auto_setup_system_xkb():
 
     except Exception as e:
         logger.warning(f"Could not auto-setup XKB: {e}")
-
-def init_uinput_device():
-    global uinput_fd
-    if uinput_fd >= 0:
-        return
-    try:
-        fd = os.open("/dev/uinput", os.O_WRONLY | os.O_NONBLOCK)
-        fcntl.ioctl(fd, UI_SET_EVBIT, EV_KEY)
-        for k in range(1, 256):
-            fcntl.ioctl(fd, UI_SET_KEYBIT, k)
-
-        setup = UInputSetup()
-        setup.id.bustype = 0x03
-        setup.id.vendor = 0x28de
-        setup.id.product = 0x1205
-        setup.id.version = 1
-        setup.name = b"SteamDeck-AltShift-Wayland-Bridge"
-
-        fcntl.ioctl(fd, UI_DEV_SETUP, setup)
-        fcntl.ioctl(fd, UI_DEV_CREATE)
-        uinput_fd = fd
-        logger.info("UInput virtual keyboard device initialized successfully.")
-    except Exception as e:
-        logger.error(f"Failed to create UInput device: {e}")
-
-def destroy_uinput_device():
-    global uinput_fd
-    if uinput_fd >= 0:
-        try:
-            fcntl.ioctl(uinput_fd, UI_DEV_DESTROY)
-            os.close(uinput_fd)
-        except Exception:
-            pass
-        uinput_fd = -1
-
-def emit_raw_event(type_, code, val):
-    global uinput_fd
-    if uinput_fd < 0:
-        init_uinput_device()
-    if uinput_fd < 0:
-        return
-    t = time.time()
-    sec = int(t)
-    usec = int((t - sec) * 1_000_000)
-    data = struct.pack("qqHHi", sec, usec, type_, code, val)
-    os.write(uinput_fd, data)
-
-def emit_keypress(keycode: int, shift: bool = False):
-    if shift:
-        emit_raw_event(EV_KEY, KEY_LEFTSHIFT, 1)
-        emit_raw_event(EV_SYN, SYN_REPORT, 0)
-        time.sleep(0.005)
-
-    emit_raw_event(EV_KEY, keycode, 1)
-    emit_raw_event(EV_SYN, SYN_REPORT, 0)
-    time.sleep(0.01)
-    emit_raw_event(EV_KEY, keycode, 0)
-    emit_raw_event(EV_SYN, SYN_REPORT, 0)
-
-    if shift:
-        time.sleep(0.005)
-        emit_raw_event(EV_KEY, KEY_LEFTSHIFT, 0)
-        emit_raw_event(EV_SYN, SYN_REPORT, 0)
 
 
 class Plugin:
@@ -771,45 +514,6 @@ class Plugin:
             "gamescope_wayland_layout": gamescope_wayland_layout,
             "x11_group": get_active_x11_group()
         }
-
-    async def send_key(self, text: str = ""):
-        global last_key_time, last_key_text, current_active_language
-        if not text:
-            return {"success": False}
-
-        now = time.time()
-        if text not in ['\x02', '\x08', '\r', '\n', '\t', 'Backspace', 'Enter', 'Tab'] and text == last_key_text and (now - last_key_time) < 0.015:
-            return {"success": True, "debounced": True}
-        last_key_text = text
-        last_key_time = now
-
-        if text in NEUTRAL_KEYS:
-            keycode, shift = NEUTRAL_KEYS[text]
-            emit_keypress(keycode, shift)
-            return {"success": True}
-
-        for ch in text:
-            if ch in NEUTRAL_KEYS:
-                keycode, shift = NEUTRAL_KEYS[ch]
-                emit_keypress(keycode, shift)
-            elif ch in RU_TO_EVDEV:
-                if current_active_language != "ru":
-                    sync_layout("ru")
-                keycode, shift = RU_TO_EVDEV[ch]
-                emit_keypress(keycode, shift)
-            elif ch in LATIN_TO_EVDEV:
-                if current_active_language != "us":
-                    sync_layout("us")
-                keycode, shift = LATIN_TO_EVDEV[ch]
-                emit_keypress(keycode, shift)
-            elif current_active_language == "ru" and ch in RU_SYMBOLS:
-                keycode, shift = RU_SYMBOLS[ch]
-                emit_keypress(keycode, shift)
-            elif ch in US_SYMBOLS:
-                keycode, shift = US_SYMBOLS[ch]
-                emit_keypress(keycode, shift)
-
-        return {"success": True}
 
     async def _main(self):
         global current_active_language, gamescope_wayland_layout

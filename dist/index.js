@@ -69,86 +69,6 @@
   const LATIN_REGEX = /[a-zA-Z]/;
   let layoutCheckInterval = null;
   let lastDetectedLang = null;
-  function resetKeyboardLayoutToEnglish() {
-      try {
-          const docs = [document];
-          if (window.top && window.top !== window && window.top.document) {
-              docs.push(window.top.document);
-          }
-          for (const doc of docs) {
-              try {
-                  const ls = doc.defaultView?.localStorage;
-                  if (ls) {
-                      for (let i = 0; i < ls.length; i++) {
-                          const key = ls.key(i);
-                          if (key && (key.includes("keyboard_layout") || key === "keyboard_layout")) {
-                              try {
-                                  const raw = ls.getItem(key);
-                                  if (raw) {
-                                      const val = JSON.parse(raw);
-                                      if (val && typeof val === "object" && val.currentLayout !== 0) {
-                                          val.currentLayout = 0;
-                                          ls.setItem(key, JSON.stringify(val));
-                                          console.log("[Alt_Shift] Reset Steam OSK layout storage to QWERTY (0)");
-                                      }
-                                  }
-                              }
-                              catch (e) { }
-                          }
-                      }
-                  }
-              }
-              catch (e) { }
-          }
-      }
-      catch (e) { }
-  }
-  function findActiveInput() {
-      function searchDoc(doc) {
-          try {
-              let active = doc.activeElement;
-              while (active) {
-                  if (active.shadowRoot && active.shadowRoot.activeElement) {
-                      active = active.shadowRoot.activeElement;
-                  }
-                  else if (active.tagName === "IFRAME") {
-                      try {
-                          const frameDoc = active.contentDocument;
-                          if (frameDoc && frameDoc.activeElement) {
-                              active = frameDoc.activeElement;
-                          }
-                          else {
-                              break;
-                          }
-                      }
-                      catch (e) {
-                          break;
-                      }
-                  }
-                  else {
-                      break;
-                  }
-              }
-              if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) {
-                  return active;
-              }
-          }
-          catch (e) { }
-          return null;
-      }
-      let el = searchDoc(document);
-      if (el)
-          return el;
-      try {
-          if (window.top && window.top !== window && window.top.document) {
-              el = searchDoc(window.top.document);
-              if (el)
-                  return el;
-          }
-      }
-      catch (e) { }
-      return null;
-  }
   function detectVisibleKeyboardLayout() {
       try {
           const docs = [document];
@@ -196,7 +116,7 @@
               }
           }
           catch (e) { }
-      }, 300);
+      }, 250);
       const clickHandler = () => {
           setTimeout(() => {
               const detected = detectVisibleKeyboardLayout();
@@ -204,7 +124,7 @@
                   lastDetectedLang = detected;
                   serverApi.callPluginMethod("sync_layout", { lang: detected });
               }
-          }, 40);
+          }, 30);
       };
       window.addEventListener("pointerdown", clickHandler, { passive: true });
       window.addEventListener("click", clickHandler, { passive: true });
@@ -224,36 +144,25 @@
               steamClient.Input.ControllerKeyboardSendText = function (text) {
                   try {
                       if (RU_REGEX.test(text)) {
-                          lastDetectedLang = "ru";
-                          serverApi.callPluginMethod("sync_layout", { lang: "ru" });
+                          if (lastDetectedLang !== "ru") {
+                              lastDetectedLang = "ru";
+                              serverApi.callPluginMethod("sync_layout", { lang: "ru" });
+                          }
                       }
                       else if (LATIN_REGEX.test(text)) {
-                          lastDetectedLang = "us";
-                          serverApi.callPluginMethod("sync_layout", { lang: "us" });
-                      }
-                      const active = findActiveInput();
-                      if (active) {
-                          const doc = active.ownerDocument || document;
-                          if (text === "\x02" || text === "\x08" || text === "Backspace") {
-                              doc.execCommand("delete", false, undefined);
+                          if (lastDetectedLang !== "us") {
+                              lastDetectedLang = "us";
+                              serverApi.callPluginMethod("sync_layout", { lang: "us" });
                           }
-                          else if (text === "\r" || text === "\n" || text === "\x03" || text === "Enter") {
-                              const enterEvt = new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true });
-                              active.dispatchEvent(enterEvt);
-                          }
-                          else if (text && text.length > 0 && text.charCodeAt(0) >= 32) {
-                              doc.execCommand("insertText", false, text);
-                          }
-                      }
-                      else {
-                          serverApi.callPluginMethod("send_key", { text });
                       }
                   }
                   catch (err) {
-                      console.error("[Alt_Shift] sendText error:", err);
+                      console.error("[Alt_Shift] sync_layout error:", err);
                   }
+                  // ALWAYS pass through to Steam native function
+                  return nativeFn.apply(this, arguments);
               };
-              console.log("[Alt_Shift] Installed KeyboardSendText hook successfully.");
+              console.log("[Alt_Shift] Installed KeyboardSendText hook successfully with native pass-through.");
           }
       }
       catch (e) {
@@ -276,12 +185,11 @@
   const Content = () => {
       return (React__default["default"].createElement(deckyFrontendLib.PanelSection, null,
           React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-              React__default["default"].createElement("div", { style: { lineHeight: "1.45", color: "#dcdedf", fontSize: "0.95em", padding: "4px 0" } }, "\u041F\u043B\u0430\u0433\u0438\u043D \u043F\u0435\u0440\u0435\u0445\u0432\u0430\u0442\u044B\u0432\u0430\u0435\u0442 \u0432\u0432\u043E\u0434 \u044D\u043A\u0440\u0430\u043D\u043D\u043E\u0439 \u043A\u043B\u0430\u0432\u0438\u0430\u0442\u0443\u0440\u044B \u0438 \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u0443\u0435\u0442 \u0441\u0438\u0441\u0442\u0435\u043C\u043D\u0443\u044E \u0440\u0430\u0441\u043A\u043B\u0430\u0434\u043A\u0443 \u0432 \u043E\u043A\u0440\u0443\u0436\u0435\u043D\u0438\u0438 Wayland \u0438 Game Mode")),
+              React__default["default"].createElement("div", { style: { lineHeight: "1.45", color: "#dcdedf", fontSize: "0.95em", padding: "4px 0" } }, "\u041F\u043B\u0430\u0433\u0438\u043D \u043E\u0442\u0441\u043B\u0435\u0436\u0438\u0432\u0430\u0435\u0442 \u0432\u0432\u043E\u0434 \u044D\u043A\u0440\u0430\u043D\u043D\u043E\u0439 \u043A\u043B\u0430\u0432\u0438\u0430\u0442\u0443\u0440\u044B \u0438 \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u0443\u0435\u0442 \u0441\u0438\u0441\u0442\u0435\u043C\u043D\u0443\u044E \u0440\u0430\u0441\u043A\u043B\u0430\u0434\u043A\u0443 \u0432 Desktop Mode \u0438 Game Mode.")),
           React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-              React__default["default"].createElement("div", { style: { fontSize: "0.85em", color: "#8f98a0", marginTop: "12px", lineHeight: "1.4" } }, "\u0412\u044B \u043C\u043E\u0436\u0435\u0442\u0435 \u0441\u043A\u0440\u044B\u0442\u044C \u043F\u043B\u0430\u0433\u0438\u043D \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 Decky Loader, \u043E\u043D \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442 \u0440\u0430\u0431\u043E\u0442\u0430\u0442\u044C \u0432 \u0444\u043E\u043D\u0435"))));
+              React__default["default"].createElement("div", { style: { fontSize: "0.85em", color: "#8f98a0", marginTop: "12px", lineHeight: "1.4" } }, "\u0412\u044B \u043C\u043E\u0436\u0435\u0442\u0435 \u0441\u043A\u0440\u044B\u0442\u044C \u043F\u043B\u0430\u0433\u0438\u043D \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 Decky Loader, \u043E\u043D \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442 \u0440\u0430\u0431\u043E\u0442\u0430\u0442\u044C \u0432 \u0444\u043E\u043D\u0435."))));
   };
   var index = deckyFrontendLib.definePlugin((serverApi) => {
-      resetKeyboardLayoutToEnglish();
       serverApi.callPluginMethod("reset_game_mode", {});
       installHook(serverApi);
       startLayoutObserver(serverApi);

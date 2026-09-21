@@ -14,80 +14,6 @@ const LATIN_REGEX = /[a-zA-Z]/;
 let layoutCheckInterval: any = null;
 let lastDetectedLang: string | null = null;
 
-function resetKeyboardLayoutToEnglish() {
-  try {
-    const docs = [document];
-    if (window.top && window.top !== window && window.top.document) {
-      docs.push(window.top.document);
-    }
-    for (const doc of docs) {
-      try {
-        const ls = doc.defaultView?.localStorage;
-        if (ls) {
-          for (let i = 0; i < ls.length; i++) {
-            const key = ls.key(i);
-            if (key && (key.includes("keyboard_layout") || key === "keyboard_layout")) {
-              try {
-                const raw = ls.getItem(key);
-                if (raw) {
-                  const val = JSON.parse(raw);
-                  if (val && typeof val === "object" && val.currentLayout !== 0) {
-                    val.currentLayout = 0;
-                    ls.setItem(key, JSON.stringify(val));
-                    console.log("[Alt_Shift] Reset Steam OSK layout storage to QWERTY (0)");
-                  }
-                }
-              } catch (e) {}
-            }
-          }
-        }
-      } catch (e) {}
-    }
-  } catch (e) {}
-}
-
-function findActiveInput(): HTMLElement | null {
-  function searchDoc(doc: Document): HTMLElement | null {
-    try {
-      let active = doc.activeElement as HTMLElement | null;
-      while (active) {
-        if (active.shadowRoot && active.shadowRoot.activeElement) {
-          active = active.shadowRoot.activeElement as HTMLElement;
-        } else if (active.tagName === "IFRAME") {
-          try {
-            const frameDoc = (active as HTMLIFrameElement).contentDocument;
-            if (frameDoc && frameDoc.activeElement) {
-              active = frameDoc.activeElement as HTMLElement;
-            } else {
-              break;
-            }
-          } catch (e) {
-            break;
-          }
-        } else {
-          break;
-        }
-      }
-      if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || (active as any).isContentEditable)) {
-        return active;
-      }
-    } catch (e) {}
-    return null;
-  }
-
-  let el = searchDoc(document);
-  if (el) return el;
-
-  try {
-    if (window.top && window.top !== window && window.top.document) {
-      el = searchDoc(window.top.document);
-      if (el) return el;
-    }
-  } catch (e) {}
-
-  return null;
-}
-
 function detectVisibleKeyboardLayout(): "ru" | "us" | null {
   try {
     const docs = [document];
@@ -132,7 +58,7 @@ function startLayoutObserver(serverApi: ServerAPI) {
         serverApi.callPluginMethod("sync_layout", { lang: detected });
       }
     } catch (e) {}
-  }, 300);
+  }, 250);
 
   const clickHandler = () => {
     setTimeout(() => {
@@ -141,7 +67,7 @@ function startLayoutObserver(serverApi: ServerAPI) {
         lastDetectedLang = detected;
         serverApi.callPluginMethod("sync_layout", { lang: detected });
       }
-    }, 40);
+    }, 30);
   };
   window.addEventListener("pointerdown", clickHandler, { passive: true });
   window.addEventListener("click", clickHandler, { passive: true });
@@ -163,32 +89,23 @@ function installHook(serverApi: ServerAPI) {
       steamClient.Input.ControllerKeyboardSendText = function (text: string) {
         try {
           if (RU_REGEX.test(text)) {
-            lastDetectedLang = "ru";
-            serverApi.callPluginMethod("sync_layout", { lang: "ru" });
-          } else if (LATIN_REGEX.test(text)) {
-            lastDetectedLang = "us";
-            serverApi.callPluginMethod("sync_layout", { lang: "us" });
-          }
-
-          const active = findActiveInput();
-          if (active) {
-            const doc = active.ownerDocument || document;
-            if (text === "\x02" || text === "\x08" || text === "Backspace") {
-              doc.execCommand("delete", false, undefined);
-            } else if (text === "\r" || text === "\n" || text === "\x03" || text === "Enter") {
-              const enterEvt = new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true });
-              active.dispatchEvent(enterEvt);
-            } else if (text && text.length > 0 && text.charCodeAt(0) >= 32) {
-              doc.execCommand("insertText", false, text);
+            if (lastDetectedLang !== "ru") {
+              lastDetectedLang = "ru";
+              serverApi.callPluginMethod("sync_layout", { lang: "ru" });
             }
-          } else {
-            serverApi.callPluginMethod("send_key", { text });
+          } else if (LATIN_REGEX.test(text)) {
+            if (lastDetectedLang !== "us") {
+              lastDetectedLang = "us";
+              serverApi.callPluginMethod("sync_layout", { lang: "us" });
+            }
           }
         } catch (err) {
-          console.error("[Alt_Shift] sendText error:", err);
+          console.error("[Alt_Shift] sync_layout error:", err);
         }
+        // ALWAYS pass through to Steam native function
+        return nativeFn.apply(this, arguments);
       };
-      console.log("[Alt_Shift] Installed KeyboardSendText hook successfully.");
+      console.log("[Alt_Shift] Installed KeyboardSendText hook successfully with native pass-through.");
     }
   } catch (e) {
     console.error("[Alt_Shift] Hook installation failed:", e);
@@ -213,12 +130,12 @@ const Content: VFC = () => {
     <PanelSection>
       <PanelSectionRow>
         <div style={{ lineHeight: "1.45", color: "#dcdedf", fontSize: "0.95em", padding: "4px 0" }}>
-          Плагин перехватывает ввод экранной клавиатуры и автоматически синхронизирует системную раскладку в окружении Wayland и Game Mode
+          Плагин отслеживает ввод экранной клавиатуры и автоматически синхронизирует системную раскладку в Desktop Mode и Game Mode.
         </div>
       </PanelSectionRow>
       <PanelSectionRow>
         <div style={{ fontSize: "0.85em", color: "#8f98a0", marginTop: "12px", lineHeight: "1.4" }}>
-          Вы можете скрыть плагин в настройках Decky Loader, он продолжит работать в фоне
+          Вы можете скрыть плагин в настройках Decky Loader, он продолжит работать в фоне.
         </div>
       </PanelSectionRow>
     </PanelSection>
@@ -226,7 +143,6 @@ const Content: VFC = () => {
 };
 
 export default definePlugin((serverApi: ServerAPI) => {
-  resetKeyboardLayoutToEnglish();
   serverApi.callPluginMethod("reset_game_mode", {});
   installHook(serverApi);
   startLayoutObserver(serverApi);
