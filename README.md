@@ -60,7 +60,7 @@ sudo systemctl restart plugin_loader
 
 ```bash
 # Клонировать репозиторий
-git clone https://gitflic.ru/project/rosakodu/wayland-osk-fix.git
+git clone https://gitflic.ru/project/viktorkoval1997/wayland-osk-fix.git
 cd wayland-osk-fix
 
 # Установить зависимости
