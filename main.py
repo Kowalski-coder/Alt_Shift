@@ -322,7 +322,10 @@ def get_user_info():
                 except Exception:
                     pass
     if not username:
-        username = "viktor"
+        if os.path.exists("/home/deck"):
+            username = "deck"
+        else:
+            username = "viktor"
 
     try:
         pw = pwd.getpwnam(username)
@@ -355,8 +358,8 @@ def call_kde_dbus(member: str, sig: str = "", arg: str = ""):
 
     kwargs = {"env": env, "capture_output": True, "text": True, "timeout": 0.4}
     if os.getuid() == 0:
-        kwargs["user"] = username
-        kwargs["group"] = username
+        kwargs["user"] = uid
+        kwargs["group"] = gid
 
     try:
         res = subprocess.run(cmd, **kwargs)
@@ -370,13 +373,17 @@ def open_x11_display(dpy_str: str = ":0"):
     if not libX11:
         return None
 
+    username, uid, gid, homedir = get_user_info()
     candidates = []
+    for p in Path(f"/run/user/{uid}").glob("xauth*"):
+        candidates.append(str(p))
     for p in Path("/run/user").glob("*/xauth*"):
         candidates.append(str(p))
     for p in Path("/tmp").glob("xauth*"):
         candidates.append(str(p))
     for p in Path("/home").glob("*/.Xauthority"):
         candidates.append(str(p))
+    candidates.append(f"{homedir}/.Xauthority")
 
     current_xauth = os.environ.get("XAUTHORITY")
     if current_xauth:
@@ -405,7 +412,7 @@ def get_kde_target_layout(lang: str) -> int:
         ok, out = call_kde_dbus("getLayoutsList")
         if ok and "a(sss)" in out:
             import re
-            matches = re.findall(r"\"([a-zA-Z0-9_-]+)\"", out)
+            matches = re.findall(r"\"([^\"]*)\"", out)
             layouts = [matches[i].lower() for i in range(0, len(matches), 3)]
             mapping = {}
             for idx, l in enumerate(layouts):
@@ -524,7 +531,12 @@ def sync_layout(lang: str):
         set_x11_layout_group(lang_str)
     else:
         set_x11_layout_group(lang_str)
-        if gamescope_wayland_layout != target_idx:
+        active_grp = get_active_x11_group()
+        if active_grp is not None and active_grp != target_idx:
+            logger.info(f"Gamescope: active group is {active_grp}, target is {target_idx} ({lang_str}), syncing via Alt+Shift")
+            emit_alt_shift()
+            gamescope_wayland_layout = target_idx
+        elif gamescope_wayland_layout != target_idx:
             logger.info(f"Gamescope: switching Wayland layout from {gamescope_wayland_layout} to {target_idx} ({lang_str})")
             emit_alt_shift()
             gamescope_wayland_layout = target_idx
@@ -532,23 +544,79 @@ def sync_layout(lang: str):
 
 def auto_setup_system_xkb():
     try:
-        env_path = Path("/etc/environment")
-        if env_path.exists():
-            try:
+        username, uid, gid, homedir = get_user_info()
+
+        # 1. Setup user configurations in /home/*
+        for home in Path("/home").glob("*"):
+            if home.is_dir() and not home.name.startswith("."):
+                try:
+                    stat = home.stat()
+                    u_uid, u_gid = stat.st_uid, stat.st_gid
+
+                    # User environment.d
+                    env_d = home / ".config" / "environment.d"
+                    env_d.mkdir(parents=True, exist_ok=True)
+                    env_file = env_d / "10-xkb.conf"
+                    env_file.write_text("XKB_DEFAULT_LAYOUT=us,ru\nXKB_DEFAULT_OPTIONS=grp:alt_shift_toggle\n", encoding="utf-8")
+                    os.chown(str(env_d), u_uid, u_gid)
+                    os.chown(str(env_file), u_uid, u_gid)
+
+                    # User kxkbrc for KDE Plasma
+                    kxkb_file = home / ".config" / "kxkbrc"
+                    kxkb_content = "[Layout]\nDisplayNames=,\nLayoutList=us,ru\nShowFlag=false\nShowLayoutIndicator=false\nUse=true\nVariantList=,\n"
+                    if kxkb_file.exists():
+                        try:
+                            lines = kxkb_file.read_text(encoding="utf-8", errors="ignore").splitlines()
+                            new_lines = []
+                            for l in lines:
+                                if l.startswith("LayoutList="):
+                                    val = l.split("=", 1)[1].strip()
+                                    layouts = [x.strip() for x in val.split(",") if x.strip()]
+                                    if "ru" not in layouts:
+                                        layouts.append("ru")
+                                    if "us" not in layouts:
+                                        layouts.insert(0, "us")
+                                    new_lines.append(f"LayoutList={','.join(layouts)}")
+                                elif l.startswith("Use="):
+                                    new_lines.append("Use=true")
+                                elif l.startswith("ShowLayoutIndicator="):
+                                    new_lines.append("ShowLayoutIndicator=false")
+                                else:
+                                    new_lines.append(l)
+                            kxkb_content = "\n".join(new_lines) + "\n"
+                        except Exception:
+                            pass
+                    kxkb_file.write_text(kxkb_content, encoding="utf-8")
+                    os.chown(str(kxkb_file), u_uid, u_gid)
+
+                    # Hide KDE Plasma OSD popups (plasmarc)
+                    plasmarc = home / ".config" / "plasmarc"
+                    if plasmarc.exists():
+                        p_txt = plasmarc.read_text(encoding="utf-8", errors="ignore")
+                        if "[OSD]" not in p_txt:
+                            plasmarc.write_text("[OSD]\nEnabled=false\n\n" + p_txt, encoding="utf-8")
+                            os.chown(str(plasmarc), u_uid, u_gid)
+                except Exception as e:
+                    logger.debug(f"User home config error: {e}")
+
+        # 2. System-wide environment fallbacks (/etc)
+        try:
+            env_path = Path("/etc/environment")
+            if env_path.exists():
                 lines = env_path.read_text(encoding="utf-8", errors="ignore").splitlines()
                 new_lines = [l for l in lines if not l.strip().startswith(("XKB_DEFAULT_LAYOUT=", "XKB_DEFAULT_OPTIONS=", "XKB_DEFAULT_VARIANT=")) and l.strip()]
                 new_lines.append("XKB_DEFAULT_LAYOUT=us,ru")
                 new_lines.append("XKB_DEFAULT_OPTIONS=grp:alt_shift_toggle")
                 env_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
-            except Exception as e:
-                logger.warning(f"Failed to update /etc/environment: {e}")
+        except Exception:
+            pass
 
         try:
             etc_env_d = Path("/etc/environment.d")
             etc_env_d.mkdir(parents=True, exist_ok=True)
             (etc_env_d / "10-xkb.conf").write_text("XKB_DEFAULT_LAYOUT=us,ru\nXKB_DEFAULT_OPTIONS=grp:alt_shift_toggle\n", encoding="utf-8")
-        except Exception as e:
-            logger.warning(f"Failed to write /etc/environment.d/10-xkb.conf: {e}")
+        except Exception:
+            pass
 
         try:
             xorg_conf = Path("/etc/X11/xorg.conf.d/00-keyboard.conf")
@@ -562,31 +630,10 @@ def auto_setup_system_xkb():
                 'EndSection\n',
                 encoding="utf-8"
             )
-        except Exception as e:
-            logger.warning(f"Failed to write /etc/X11/xorg.conf.d/00-keyboard.conf: {e}")
+        except Exception:
+            pass
 
-        for home in Path("/home").glob("*"):
-            if home.is_dir() and not home.name.startswith("."):
-                try:
-                    env_d = home / ".config" / "environment.d"
-                    env_d.mkdir(parents=True, exist_ok=True)
-                    env_file = env_d / "10-xkb.conf"
-                    env_file.write_text("XKB_DEFAULT_LAYOUT=us,ru\nXKB_DEFAULT_OPTIONS=grp:alt_shift_toggle\n", encoding="utf-8")
-                    stat = home.stat()
-                    os.chown(env_d, stat.st_uid, stat.st_gid)
-                    os.chown(env_file, stat.st_uid, stat.st_gid)
-
-                    # Hide KDE Plasma OSD popups (plasmarc)
-                    plasmarc = home / ".config" / "plasmarc"
-                    if plasmarc.exists():
-                        p_txt = plasmarc.read_text(encoding="utf-8", errors="ignore")
-                        if "[OSD]" not in p_txt:
-                            plasmarc.write_text("[OSD]\nEnabled=false\n\n" + p_txt, encoding="utf-8")
-                            os.chown(plasmarc, stat.st_uid, stat.st_gid)
-                except Exception:
-                    pass
-
-        username, uid, gid, homedir = get_user_info()
+        # 3. Dynamic systemd user env & KWin reload
         user_env = {
             "HOME": homedir,
             "USER": username,
@@ -595,13 +642,14 @@ def auto_setup_system_xkb():
             "DBUS_SESSION_BUS_ADDRESS": f"unix:path=/run/user/{uid}/bus",
             "PATH": "/usr/local/bin:/usr/bin:/bin"
         }
-        kwargs = {"env": user_env, "timeout": 1.0}
+        kwargs = {"env": user_env, "timeout": 0.5}
         if os.getuid() == 0:
-            kwargs["user"] = username
-            kwargs["group"] = username
+            kwargs["user"] = uid
+            kwargs["group"] = gid
         try:
             subprocess.run(["systemctl", "--user", "set-environment", "XKB_DEFAULT_LAYOUT=us,ru", "XKB_DEFAULT_OPTIONS=grp:alt_shift_toggle"], **kwargs)
             subprocess.run(["dbus-update-activation-environment", "--systemd", "XKB_DEFAULT_LAYOUT=us,ru", "XKB_DEFAULT_OPTIONS=grp:alt_shift_toggle"], **kwargs)
+            subprocess.run(["busctl", "--user", "call", "org.kde.KWin", "/KWin", "org.kde.KWin", "reconfigure"], **kwargs)
         except Exception:
             pass
 
