@@ -322,10 +322,20 @@ def get_user_info():
                 except Exception:
                     pass
     if not username:
-        if os.path.exists("/home/deck"):
+        for p in Path("/home").glob("*"):
+            if p.is_dir() and not p.name.startswith("."):
+                try:
+                    st = p.stat()
+                    if st.st_uid >= 1000:
+                        username = p.name
+                        break
+                except Exception:
+                    pass
+    if not username:
+        try:
+            username = pwd.getpwuid(1000).pw_name
+        except Exception:
             username = "deck"
-        else:
-            username = "viktor"
 
     try:
         pw = pwd.getpwnam(username)
