@@ -1,11 +1,11 @@
 # Wayland OSK Fix
 
-[![Decky Plugin](https://img.shields.io/badge/Decky_Loader-Plugin-00adff?style=for-the-badge&logo=steamdeck&logoColor=white)](https://deckbrew.xyz/)
+[![Decky Loader Россия](https://img.shields.io/badge/Decky_Loader-Россия-00adff?style=for-the-badge&logo=steamdeck&logoColor=white)](https://deckyloader.ru/)
 [![License](https://img.shields.io/badge/License-BSD_3--Clause-blue?style=for-the-badge)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-SteamOS_%7C_CachyOS_%7C_Arch_Wayland-orange?style=for-the-badge)](https://archlinux.org/)
 [![Version](https://img.shields.io/badge/Version-1.0.0-green?style=for-the-badge)](package.json)
 
-Плагин для **Decky Loader**, полностью исправляющий ввод с виртуальной экранной клавиатуры Steam (OSK) в окружении **Wayland** (KDE Plasma Desktop Mode) и **Game Mode (Gamescope)** на Steam Deck, SteamOS и CachyOS.
+Плагин для каталога **[Decky Loader Россия](https://deckyloader.ru/)** ([репозиторий на GitFlic](https://gitflic.ru/project/rosakodu/decky-loader)), полностью исправляющий ввод с виртуальной экранной клавиатуры Steam (OSK) в окружении **Wayland** (KDE Plasma Desktop Mode) и **Game Mode (Gamescope)** на Steam Deck, SteamOS и CachyOS.
 
 ---
 
