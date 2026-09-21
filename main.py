@@ -27,9 +27,6 @@ EV_SYN = 0x00
 EV_KEY = 0x01
 SYN_REPORT = 0
 
-KEY_LEFTSHIFT = 42
-KEY_LEFTALT = 56
-
 class InputId(ctypes.Structure):
     _fields_ = [
         ("bustype", ctypes.c_uint16),
@@ -44,6 +41,197 @@ class UInputSetup(ctypes.Structure):
         ("name", ctypes.c_char * 80),
         ("ff_effects_max", ctypes.c_uint32),
     ]
+
+# Linux Keycodes
+KEY_ESC = 1
+KEY_1 = 2
+KEY_2 = 3
+KEY_3 = 4
+KEY_4 = 5
+KEY_5 = 6
+KEY_6 = 7
+KEY_7 = 8
+KEY_8 = 9
+KEY_9 = 10
+KEY_0 = 11
+KEY_MINUS = 12
+KEY_EQUAL = 13
+KEY_BACKSPACE = 14
+KEY_TAB = 15
+KEY_Q = 16
+KEY_W = 17
+KEY_E = 18
+KEY_R = 19
+KEY_T = 20
+KEY_Y = 21
+KEY_U = 22
+KEY_I = 23
+KEY_O = 24
+KEY_P = 25
+KEY_LEFTBRACE = 26
+KEY_RIGHTBRACE = 27
+KEY_ENTER = 28
+KEY_LEFTCTRL = 29
+KEY_A = 30
+KEY_S = 31
+KEY_D = 32
+KEY_F = 33
+KEY_G = 34
+KEY_H = 35
+KEY_J = 36
+KEY_K = 37
+KEY_L = 38
+KEY_SEMICOLON = 39
+KEY_APOSTROPHE = 40
+KEY_GRAVE = 41
+KEY_LEFTSHIFT = 42
+KEY_BACKSLASH = 43
+KEY_Z = 44
+KEY_X = 45
+KEY_C = 46
+KEY_V = 47
+KEY_B = 48
+KEY_N = 49
+KEY_M = 50
+KEY_COMMA = 51
+KEY_DOT = 52
+KEY_SLASH = 53
+KEY_LEFTALT = 56
+KEY_SPACE = 57
+KEY_UP = 103
+KEY_LEFT = 105
+KEY_RIGHT = 106
+KEY_DOWN = 108
+
+CHAR_TO_EVDEV = {
+    # Lowercase Latin
+    'a': (KEY_A, False), 'b': (KEY_B, False), 'c': (KEY_C, False),
+    'd': (KEY_D, False), 'e': (KEY_E, False), 'f': (KEY_F, False),
+    'g': (KEY_G, False), 'h': (KEY_H, False), 'i': (KEY_I, False),
+    'j': (KEY_J, False), 'k': (KEY_K, False), 'l': (KEY_L, False),
+    'm': (KEY_M, False), 'n': (KEY_N, False), 'o': (KEY_O, False),
+    'p': (KEY_P, False), 'q': (KEY_Q, False), 'r': (KEY_R, False),
+    's': (KEY_S, False), 't': (KEY_T, False), 'u': (KEY_U, False),
+    'v': (KEY_V, False), 'w': (KEY_W, False), 'x': (KEY_X, False),
+    'y': (KEY_Y, False), 'z': (KEY_Z, False),
+
+    # Uppercase Latin
+    'A': (KEY_A, True), 'B': (KEY_B, True), 'C': (KEY_C, True),
+    'D': (KEY_D, True), 'E': (KEY_E, True), 'F': (KEY_F, True),
+    'G': (KEY_G, True), 'H': (KEY_H, True), 'I': (KEY_I, True),
+    'J': (KEY_J, True), 'K': (KEY_K, True), 'L': (KEY_L, True),
+    'M': (KEY_M, True), 'N': (KEY_N, True), 'O': (KEY_O, True),
+    'P': (KEY_P, True), 'Q': (KEY_Q, True), 'R': (KEY_R, True),
+    'S': (KEY_S, True), 'T': (KEY_T, True), 'U': (KEY_U, True),
+    'V': (KEY_V, True), 'W': (KEY_W, True), 'X': (KEY_X, True),
+    'Y': (KEY_Y, True), 'Z': (KEY_Z, True),
+
+    # Digits
+    '1': (KEY_1, False), '2': (KEY_2, False), '3': (KEY_3, False),
+    '4': (KEY_4, False), '5': (KEY_5, False), '6': (KEY_6, False),
+    '7': (KEY_7, False), '8': (KEY_8, False), '9': (KEY_9, False),
+    '0': (KEY_0, False),
+
+    # Special / Symbols
+    ' ': (KEY_SPACE, False),
+    '-': (KEY_MINUS, False), '_': (KEY_MINUS, True),
+    '=': (KEY_EQUAL, False), '+': (KEY_EQUAL, True),
+    '[': (KEY_LEFTBRACE, False), '{': (KEY_LEFTBRACE, True),
+    ']': (KEY_RIGHTBRACE, False), '}': (KEY_RIGHTBRACE, True),
+    ';': (KEY_SEMICOLON, False), ':': (KEY_SEMICOLON, True),
+    "'": (KEY_APOSTROPHE, False), '"': (KEY_APOSTROPHE, True),
+    ',': (KEY_COMMA, False), '<': (KEY_COMMA, True),
+    '.': (KEY_DOT, False), '>': (KEY_DOT, True),
+    '/': (KEY_SLASH, False), '?': (KEY_SLASH, True),
+    '`': (KEY_GRAVE, False), '~': (KEY_GRAVE, True),
+    '!': (KEY_1, True), '@': (KEY_2, True), '#': (KEY_3, True),
+    '$': (KEY_4, True), '%': (KEY_5, True), '^': (KEY_6, True),
+    '&': (KEY_7, True), '*': (KEY_8, True), '(': (KEY_9, True),
+    ')': (KEY_0, True), '\\': (KEY_BACKSLASH, False), '|': (KEY_BACKSLASH, True),
+}
+
+RU_TO_EVDEV = {
+    'й': (KEY_Q, False), 'Й': (KEY_Q, True),
+    'ц': (KEY_W, False), 'Ц': (KEY_W, True),
+    'у': (KEY_E, False), 'У': (KEY_E, True),
+    'к': (KEY_R, False), 'К': (KEY_R, True),
+    'е': (KEY_T, False), 'Е': (KEY_T, True),
+    'н': (KEY_Y, False), 'Н': (KEY_Y, True),
+    'г': (KEY_U, False), 'Г': (KEY_U, True),
+    'ш': (KEY_I, False), 'Ш': (KEY_I, True),
+    'щ': (KEY_O, False), 'Щ': (KEY_O, True),
+    'з': (KEY_P, False), 'З': (KEY_P, True),
+    'х': (KEY_LEFTBRACE, False), 'Х': (KEY_LEFTBRACE, True),
+    'ъ': (KEY_RIGHTBRACE, False), 'Ъ': (KEY_RIGHTBRACE, True),
+    'ф': (KEY_A, False), 'Ф': (KEY_A, True),
+    'ы': (KEY_S, False), 'Ы': (KEY_S, True),
+    'в': (KEY_D, False), 'В': (KEY_D, True),
+    'а': (KEY_F, False), 'А': (KEY_F, True),
+    'п': (KEY_G, False), 'П': (KEY_G, True),
+    'р': (KEY_H, False), 'Р': (KEY_H, True),
+    'о': (KEY_J, False), 'О': (KEY_J, True),
+    'л': (KEY_K, False), 'Л': (KEY_K, True),
+    'д': (KEY_L, False), 'Д': (KEY_L, True),
+    'ж': (KEY_SEMICOLON, False), 'Ж': (KEY_SEMICOLON, True),
+    'э': (KEY_APOSTROPHE, False), 'Э': (KEY_APOSTROPHE, True),
+    'я': (KEY_Z, False), 'Я': (KEY_Z, True),
+    'ч': (KEY_X, False), 'Ч': (KEY_X, True),
+    'с': (KEY_C, False), 'С': (KEY_C, True),
+    'м': (KEY_V, False), 'М': (KEY_V, True),
+    'и': (KEY_B, False), 'И': (KEY_B, True),
+    'т': (KEY_N, False), 'Т': (KEY_N, True),
+    'ь': (KEY_M, False), 'Ь': (KEY_M, True),
+    'б': (KEY_COMMA, False), 'Б': (KEY_COMMA, True),
+    'ю': (KEY_DOT, False), 'Ю': (KEY_DOT, True),
+    'ё': (KEY_GRAVE, False), 'Ё': (KEY_GRAVE, True),
+}
+
+RU_SYMBOLS = {
+    '.': (KEY_SLASH, False),
+    ',': (KEY_SLASH, True),
+    '?': (KEY_7, True),
+    '!': (KEY_1, True),
+    '"': (KEY_2, True),
+    '№': (KEY_3, True),
+    ';': (KEY_4, True),
+    '%': (KEY_5, True),
+    ':': (KEY_6, True),
+    '*': (KEY_8, True),
+    '(': (KEY_9, True),
+    ')': (KEY_0, True),
+    '_': (KEY_MINUS, True),
+    '-': (KEY_MINUS, False),
+    '=': (KEY_EQUAL, False),
+    '+': (KEY_EQUAL, True),
+    '/': (KEY_BACKSLASH, True),
+    '\\': (KEY_BACKSLASH, False),
+}
+
+SPECIAL_KEYS = {
+    'Backspace': KEY_BACKSPACE,
+    '\x02': KEY_BACKSPACE,
+    '\x08': KEY_BACKSPACE,
+    '\x7f': KEY_BACKSPACE,
+    'Enter': KEY_ENTER,
+    '\r': KEY_ENTER,
+    '\n': KEY_ENTER,
+    '\x03': KEY_ENTER,
+    '\x0a': KEY_ENTER,
+    '\x0d': KEY_ENTER,
+    'Tab': KEY_TAB,
+    '\t': KEY_TAB,
+    '\x09': KEY_TAB,
+    'Escape': KEY_ESC,
+    '\x1b': KEY_ESC,
+    'ArrowLeft': KEY_LEFT,
+    '\x04': KEY_LEFT,
+    'ArrowRight': KEY_RIGHT,
+    '\x05': KEY_RIGHT,
+    'ArrowUp': KEY_UP,
+    '\x06': KEY_UP,
+    'ArrowDown': KEY_DOWN,
+    '\x07': KEY_DOWN,
+}
 
 libc = None
 try:
@@ -97,6 +285,8 @@ current_cached_kde_layout = -1
 current_active_language = "us"
 gamescope_wayland_layout = 0
 last_is_desktop = None
+last_key_time = 0
+last_key_text = None
 kde_layout_map = {}
 
 def get_user_info():
@@ -314,22 +504,22 @@ def init_uinput_device():
     try:
         fd = os.open("/dev/uinput", os.O_WRONLY | os.O_NONBLOCK)
         fcntl.ioctl(fd, UI_SET_EVBIT, EV_KEY)
-        fcntl.ioctl(fd, UI_SET_KEYBIT, KEY_LEFTALT)
-        fcntl.ioctl(fd, UI_SET_KEYBIT, KEY_LEFTSHIFT)
+        for k in range(1, 256):
+            fcntl.ioctl(fd, UI_SET_KEYBIT, k)
 
         setup = UInputSetup()
         setup.id.bustype = 0x03
         setup.id.vendor = 0x28de
         setup.id.product = 0x1205
         setup.id.version = 1
-        setup.name = b"SteamDeck-AltShift-Trigger"
+        setup.name = b"SteamDeck-OSK-Wayland-Bridge"
 
         fcntl.ioctl(fd, UI_DEV_SETUP, setup)
         fcntl.ioctl(fd, UI_DEV_CREATE)
         uinput_fd = fd
-        logger.info("UInput layout switch trigger initialized.")
+        logger.info("Pure ctypes UInput device initialized successfully.")
     except Exception as e:
-        logger.error(f"Failed to create UInput trigger: {e}")
+        logger.error(f"Failed to create UInput device: {e}")
 
 def destroy_uinput_device():
     global uinput_fd
@@ -353,18 +543,32 @@ def emit_raw_event(type_, code, val):
     data = struct.pack("qqHHi", sec, usec, type_, code, val)
     os.write(uinput_fd, data)
 
-def emit_alt_shift():
-    emit_raw_event(EV_KEY, KEY_LEFTALT, 1)
-    emit_raw_event(EV_SYN, SYN_REPORT, 0)
-    time.sleep(0.005)
-    emit_raw_event(EV_KEY, KEY_LEFTSHIFT, 1)
+def emit_keypress(keycode: int, shift: bool = False):
+    if shift:
+        emit_raw_event(EV_KEY, KEY_LEFTSHIFT, 1)
+        emit_raw_event(EV_SYN, SYN_REPORT, 0)
+        time.sleep(0.005)
+
+    emit_raw_event(EV_KEY, keycode, 1)
     emit_raw_event(EV_SYN, SYN_REPORT, 0)
     time.sleep(0.01)
-    emit_raw_event(EV_KEY, KEY_LEFTSHIFT, 0)
+    emit_raw_event(EV_KEY, keycode, 0)
+    emit_raw_event(EV_SYN, SYN_REPORT, 0)
+
+    if shift:
+        time.sleep(0.005)
+        emit_raw_event(EV_KEY, KEY_LEFTSHIFT, 0)
+        emit_raw_event(EV_SYN, SYN_REPORT, 0)
+
+def emit_alt_shift():
+    emit_raw_event(EV_KEY, KEY_LEFTALT, 1)
+    emit_raw_event(EV_KEY, KEY_LEFTSHIFT, 1)
     emit_raw_event(EV_SYN, SYN_REPORT, 0)
     time.sleep(0.005)
+    emit_raw_event(EV_KEY, KEY_LEFTSHIFT, 0)
     emit_raw_event(EV_KEY, KEY_LEFTALT, 0)
     emit_raw_event(EV_SYN, SYN_REPORT, 0)
+    time.sleep(0.02)
 
 def sync_layout(lang: str):
     global current_cached_kde_layout, current_active_language, gamescope_wayland_layout, last_is_desktop
@@ -389,17 +593,13 @@ def sync_layout(lang: str):
                 if ok:
                     current_cached_kde_layout = kde_target
                     logger.info(f"KDE DBus: setLayout({kde_target}) -> {lang_str}")
+                    time.sleep(0.02)
         except Exception as e:
             logger.debug(f"KDE layout sync error: {e}")
         set_x11_layout_group(lang_str)
     else:
         set_x11_layout_group(lang_str)
-        active_grp = get_active_x11_group()
-        if active_grp is not None and active_grp != target_idx:
-            logger.info(f"Gamescope: active group is {active_grp}, target is {target_idx} ({lang_str}), syncing via Alt+Shift")
-            emit_alt_shift()
-            gamescope_wayland_layout = target_idx
-        elif gamescope_wayland_layout != target_idx:
+        if gamescope_wayland_layout != target_idx:
             logger.info(f"Gamescope: switching Wayland layout from {gamescope_wayland_layout} to {target_idx} ({lang_str})")
             emit_alt_shift()
             gamescope_wayland_layout = target_idx
@@ -407,17 +607,6 @@ def sync_layout(lang: str):
 
 def auto_setup_system_xkb():
     try:
-        # Cleanup any unwanted system config files
-        for bad_path in [
-            Path("/etc/X11/xorg.conf.d/00-keyboard.conf"),
-            Path("/etc/environment.d/10-xkb.conf")
-        ]:
-            if bad_path.exists():
-                try:
-                    bad_path.unlink()
-                except Exception:
-                    pass
-
         username, uid, gid, homedir = get_user_info()
 
         # User configurations in /home/*
@@ -514,6 +703,39 @@ class Plugin:
             "gamescope_wayland_layout": gamescope_wayland_layout,
             "x11_group": get_active_x11_group()
         }
+
+    async def send_key(self, text: str = ""):
+        global last_key_time, last_key_text
+        if not text:
+            return {"success": False}
+
+        now = time.time()
+        if text not in ['\x02', '\x08', '\r', '\n', '\t', 'Backspace', 'Enter', 'Tab'] and text == last_key_text and (now - last_key_time) < 0.015:
+            return {"success": True, "debounced": True}
+        last_key_text = text
+        last_key_time = now
+
+        if text in SPECIAL_KEYS:
+            emit_keypress(SPECIAL_KEYS[text], False)
+            return {"success": True}
+
+        for ch in text:
+            if ch in SPECIAL_KEYS:
+                emit_keypress(SPECIAL_KEYS[ch], False)
+            elif ch in RU_TO_EVDEV:
+                sync_layout("ru")
+                keycode, shift = RU_TO_EVDEV[ch]
+                emit_keypress(keycode, shift)
+            elif ch in CHAR_TO_EVDEV:
+                sync_layout("us")
+                keycode, shift = CHAR_TO_EVDEV[ch]
+                emit_keypress(keycode, shift)
+            elif current_active_language == "ru" and ch in RU_SYMBOLS:
+                sync_layout("ru")
+                keycode, shift = RU_SYMBOLS[ch]
+                emit_keypress(keycode, shift)
+
+        return {"success": True}
 
     async def _main(self):
         global current_active_language, gamescope_wayland_layout
