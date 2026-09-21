@@ -100,6 +100,7 @@ KEY_2 = 3
 KEY_3 = 4
 KEY_4 = 5
 KEY_5 = 6
+KEY_6 = 7
 KEY_7 = 8
 KEY_8 = 9
 KEY_9 = 10
@@ -146,8 +147,10 @@ KEY_M = 50
 KEY_COMMA = 51
 KEY_DOT = 52
 KEY_SLASH = 53
+KEY_RIGHTSHIFT = 54
 KEY_LEFTALT = 56
 KEY_SPACE = 57
+KEY_CAPSLOCK = 58
 KEY_UP = 103
 KEY_LEFT = 105
 KEY_RIGHT = 106
@@ -540,7 +543,7 @@ def sync_layout(lang: str):
         init_uinput_device()
     last_is_desktop = in_desktop
 
-    # 1. Desktop Mode: KDE DBus Layout Switch
+    # 1. Desktop Mode: KDE DBus Layout Switch + X11
     if in_desktop:
         try:
             kde_target = get_kde_target_layout(lang_str)
