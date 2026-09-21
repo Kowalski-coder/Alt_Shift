@@ -3,7 +3,6 @@
   "author": "Kowalski",
   "version": "0.0.2",
   "flags": ["root"],
-  "api_version": 1,
   "publish": {
     "tags": ["utility", "keyboard", "wayland", "steamos", "arch"],
     "description": "Исправляет ввод русских символов и смену раскладки на экранной клавиатуре Steam в Wayland и Game Mode.",
