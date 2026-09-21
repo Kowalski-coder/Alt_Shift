@@ -1,7 +1,6 @@
 import asyncio
 import ctypes
 import fcntl
-import json
 import os
 from pathlib import Path
 import pwd
@@ -12,12 +11,10 @@ import time
 try:
     import decky_plugin
     logger = decky_plugin.logger
-    SETTINGS_DIR = Path(decky_plugin.DECKY_PLUGIN_SETTINGS_DIR)
 except ImportError:
     import logging
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger("Wayland-OSK-Fix")
-    SETTINGS_DIR = Path.home() / ".config" / "wayland-osk-fix"
 
 # Linux uinput ioctl constants
 UI_DEV_CREATE = 0x5501
@@ -53,7 +50,7 @@ try:
 except Exception as e:
     logger.warning(f"Could not load libc.so.6: {e}")
 
-# X11 / XKB ctypes definitions for absolute layout switching
+# X11 / XKB ctypes definitions
 libX11 = None
 try:
     libX11 = ctypes.CDLL("libX11.so.6")
@@ -147,17 +144,14 @@ KEY_M = 50
 KEY_COMMA = 51
 KEY_DOT = 52
 KEY_SLASH = 53
-KEY_RIGHTSHIFT = 54
 KEY_LEFTALT = 56
 KEY_SPACE = 57
-KEY_CAPSLOCK = 58
 KEY_UP = 103
 KEY_LEFT = 105
 KEY_RIGHT = 106
 KEY_DOWN = 108
 
 LATIN_TO_EVDEV = {
-    # Lowercase Latin
     'a': (KEY_A, False), 'b': (KEY_B, False), 'c': (KEY_C, False),
     'd': (KEY_D, False), 'e': (KEY_E, False), 'f': (KEY_F, False),
     'g': (KEY_G, False), 'h': (KEY_H, False), 'i': (KEY_I, False),
@@ -168,7 +162,6 @@ LATIN_TO_EVDEV = {
     'v': (KEY_V, False), 'w': (KEY_W, False), 'x': (KEY_X, False),
     'y': (KEY_Y, False), 'z': (KEY_Z, False),
 
-    # Uppercase Latin
     'A': (KEY_A, True), 'B': (KEY_B, True), 'C': (KEY_C, True),
     'D': (KEY_D, True), 'E': (KEY_E, True), 'F': (KEY_F, True),
     'G': (KEY_G, True), 'H': (KEY_H, True), 'I': (KEY_I, True),
@@ -217,7 +210,6 @@ RU_TO_EVDEV = {
 }
 
 NEUTRAL_KEYS = {
-    # Whitespace & Control (never alters layout)
     ' ': (KEY_SPACE, False),
     '\t': (KEY_TAB, False),
     'Tab': (KEY_TAB, False),
@@ -242,7 +234,6 @@ NEUTRAL_KEYS = {
     'ArrowDown': (KEY_DOWN, False),
     '\x07': (KEY_DOWN, False),
 
-    # Digits (identical in US and RU)
     '1': (KEY_1, False), '2': (KEY_2, False), '3': (KEY_3, False),
     '4': (KEY_4, False), '5': (KEY_5, False), '6': (KEY_6, False),
     '7': (KEY_7, False), '8': (KEY_8, False), '9': (KEY_9, False),
@@ -250,23 +241,23 @@ NEUTRAL_KEYS = {
 }
 
 RU_SYMBOLS = {
-    '.': (KEY_SLASH, False),       # Russian dot is on KEY_SLASH
-    ',': (KEY_SLASH, True),        # Russian comma is on Shift + KEY_SLASH
-    '?': (KEY_7, True),            # Russian ? is on Shift + 7
-    '!': (KEY_1, True),            # Russian ! is on Shift + 1
-    '"': (KEY_2, True),            # Russian " is on Shift + 2
-    '№': (KEY_3, True),            # Russian № is on Shift + 3
-    ';': (KEY_4, True),            # Russian ; is on Shift + 4
-    '%': (KEY_5, True),            # Russian % is on Shift + 5
-    ':': (KEY_6, True),            # Russian : is on Shift + 6
-    '*': (KEY_8, True),            # Russian * is on Shift + 8
-    '(': (KEY_9, True),            # Russian ( is on Shift + 9
-    ')': (KEY_0, True),            # Russian ) is on Shift + 0
+    '.': (KEY_SLASH, False),
+    ',': (KEY_SLASH, True),
+    '?': (KEY_7, True),
+    '!': (KEY_1, True),
+    '"': (KEY_2, True),
+    '№': (KEY_3, True),
+    ';': (KEY_4, True),
+    '%': (KEY_5, True),
+    ':': (KEY_6, True),
+    '*': (KEY_8, True),
+    '(': (KEY_9, True),
+    ')': (KEY_0, True),
     '_': (KEY_MINUS, True),
     '-': (KEY_MINUS, False),
     '=': (KEY_EQUAL, False),
     '+': (KEY_EQUAL, True),
-    '/': (KEY_BACKSLASH, True),    # Russian / is on Shift + backslash
+    '/': (KEY_BACKSLASH, True),
     '\\': (KEY_BACKSLASH, False),
 }
 
@@ -306,10 +297,9 @@ US_SYMBOLS = {
 }
 
 uinput_fd = -1
-plugin_enabled = True
 current_cached_kde_layout = -1
 current_active_language = "us"
-gamescope_wayland_layout = 0  # 0=US, 1=RU (Tracks Gamescope's internal Wayland XKB state)
+gamescope_wayland_layout = 0
 last_key_time = 0
 last_key_text = None
 last_is_desktop = None
@@ -341,9 +331,6 @@ def get_user_info():
         return username, 1000, 1000, f"/home/{username}"
 
 def call_kde_dbus(member: str, sig: str = "", arg: str = ""):
-    """
-    Calls org.kde.KeyboardLayouts via busctl under the target user session.
-    """
     username, uid, gid, homedir = get_user_info()
     bus_path = f"/run/user/{uid}/bus"
     if not os.path.exists(bus_path):
@@ -380,20 +367,14 @@ def call_kde_dbus(member: str, sig: str = "", arg: str = ""):
         return False, str(e)
 
 def open_x11_display(dpy_str: str = ":0"):
-    """
-    Finds and sets the active XAUTHORITY cookie and opens connection to the X11/Xwayland display.
-    """
     if not libX11:
         return None
 
     candidates = []
-    # 1. User runtime xauth
     for p in Path("/run/user").glob("*/xauth*"):
         candidates.append(str(p))
-    # 2. Temp xauth
     for p in Path("/tmp").glob("xauth*"):
         candidates.append(str(p))
-    # 3. User home .Xauthority
     for p in Path("/home").glob("*/.Xauthority"):
         candidates.append(str(p))
 
@@ -448,9 +429,6 @@ def is_desktop_mode() -> bool:
         return False
 
 def get_active_x11_group() -> int:
-    """
-    Returns the current real XKB layout group index (0=US, 1=RU) from X11/Xwayland.
-    """
     if not libX11:
         return None
 
@@ -476,10 +454,6 @@ def get_active_x11_group() -> int:
     return None
 
 def set_x11_layout_group(lang: str) -> bool:
-    """
-    Directly locks the XKB layout group on X11 / Xwayland via libX11.XkbLockGroup.
-    Absolute, verified, never inverts.
-    """
     if not libX11:
         return False
 
@@ -502,7 +476,6 @@ def set_x11_layout_group(lang: str) -> bool:
                         libX11.XkbLockGroup(dpy, 0x0100, target_group)
                         libX11.XFlush(dpy)
                         time.sleep(0.01)
-                        logger.info(f"Locked X11 {dpy_str} XKB group: {st.group} -> {target_group} ({lang})")
                     success = True
                 libX11.XCloseDisplay(dpy)
             except Exception as e:
@@ -524,17 +497,12 @@ def emit_alt_shift():
     time.sleep(0.02)
 
 def sync_layout(lang: str):
-    """
-    lang: 'us' (English, 0) or 'ru' (Russian, 1)
-    Synchronizes layout state across Desktop Mode (KDE DBus + X11) and Game Mode (Gamescope Wayland + Xwayland).
-    """
     global current_cached_kde_layout, current_active_language, gamescope_wayland_layout, last_is_desktop
     target_idx = 1 if (lang == "ru" or lang == 1) else 0
     lang_str = "ru" if target_idx == 1 else "us"
 
     in_desktop = is_desktop_mode()
 
-    # Mode transition tracking (Reset without destroying uinput device)
     if last_is_desktop is not None and last_is_desktop != in_desktop:
         current_cached_kde_layout = -1
         gamescope_wayland_layout = 0
@@ -542,7 +510,6 @@ def sync_layout(lang: str):
         logger.info(f"Mode changed: Desktop={in_desktop}. Gamescope Wayland state reset to 0 (US)")
     last_is_desktop = in_desktop
 
-    # 1. Desktop Mode: KDE DBus Layout Switch + X11
     if in_desktop:
         current_active_language = lang_str
         try:
@@ -556,7 +523,6 @@ def sync_layout(lang: str):
             logger.debug(f"KDE layout sync error: {e}")
         set_x11_layout_group(lang_str)
     else:
-        # 2. Game Mode (Gamescope Wayland compositor):
         set_x11_layout_group(lang_str)
         if gamescope_wayland_layout != target_idx:
             logger.info(f"Gamescope: switching Wayland layout from {gamescope_wayland_layout} to {target_idx} ({lang_str})")
@@ -565,32 +531,18 @@ def sync_layout(lang: str):
         current_active_language = lang_str
 
 def auto_setup_system_xkb():
-    """
-    Auto-configures XKB us,ru layout environment on host system.
-    """
     try:
-        # 1. Clean /etc/environment
         env_path = Path("/etc/environment")
         if env_path.exists():
             try:
                 lines = env_path.read_text(encoding="utf-8", errors="ignore").splitlines()
-                new_lines = []
-                for line in lines:
-                    stripped = line.strip()
-                    if stripped.startswith("XKB_DEFAULT_LAYOUT=") or \
-                       stripped.startswith("XKB_DEFAULT_OPTIONS=") or \
-                       stripped.startswith("XKB_DEFAULT_VARIANT="):
-                        continue
-                    if stripped:
-                        new_lines.append(line)
+                new_lines = [l for l in lines if not l.strip().startswith(("XKB_DEFAULT_LAYOUT=", "XKB_DEFAULT_OPTIONS=", "XKB_DEFAULT_VARIANT=")) and l.strip()]
                 new_lines.append("XKB_DEFAULT_LAYOUT=us,ru")
                 new_lines.append("XKB_DEFAULT_OPTIONS=grp:alt_shift_toggle")
                 env_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
-                logger.info("Auto-configured clean /etc/environment with XKB us,ru")
             except Exception as e:
                 logger.warning(f"Failed to update /etc/environment: {e}")
 
-        # 2. /etc/environment.d/10-xkb.conf
         try:
             etc_env_d = Path("/etc/environment.d")
             etc_env_d.mkdir(parents=True, exist_ok=True)
@@ -598,7 +550,6 @@ def auto_setup_system_xkb():
         except Exception as e:
             logger.warning(f"Failed to write /etc/environment.d/10-xkb.conf: {e}")
 
-        # 3. /etc/X11/xorg.conf.d/00-keyboard.conf
         try:
             xorg_conf = Path("/etc/X11/xorg.conf.d/00-keyboard.conf")
             xorg_conf.parent.mkdir(parents=True, exist_ok=True)
@@ -614,7 +565,6 @@ def auto_setup_system_xkb():
         except Exception as e:
             logger.warning(f"Failed to write /etc/X11/xorg.conf.d/00-keyboard.conf: {e}")
 
-        # 4. Configure user environment.d for all home users
         for home in Path("/home").glob("*"):
             if home.is_dir() and not home.name.startswith("."):
                 try:
@@ -625,10 +575,9 @@ def auto_setup_system_xkb():
                     stat = home.stat()
                     os.chown(env_d, stat.st_uid, stat.st_gid)
                     os.chown(env_file, stat.st_uid, stat.st_gid)
-                except Exception as e:
-                    logger.warning(f"Failed to write user 10-xkb.conf for {home.name}: {e}")
+                except Exception:
+                    pass
 
-        # 5. User systemd session environment
         username, uid, gid, homedir = get_user_info()
         user_env = {
             "HOME": homedir,
@@ -662,7 +611,7 @@ def init_uinput_device():
             fcntl.ioctl(fd, UI_SET_KEYBIT, k)
 
         setup = UInputSetup()
-        setup.id.bustype = 0x03 # BUS_USB
+        setup.id.bustype = 0x03
         setup.id.vendor = 0x28de
         setup.id.product = 0x1205
         setup.id.version = 1
@@ -717,9 +666,6 @@ def emit_keypress(keycode: int, shift: bool = False):
 
 class Plugin:
     async def sync_layout(self, lang: str = "us"):
-        """
-        Explicit layout sync endpoint callable from frontend when OSK opens or switches layout.
-        """
         sync_layout(lang)
         return {
             "success": True,
@@ -730,9 +676,6 @@ class Plugin:
         }
 
     async def reset_game_mode(self):
-        """
-        Resets both system and Game Mode layout tracking to English (US).
-        """
         global gamescope_wayland_layout, current_active_language
         gamescope_wayland_layout = 0
         current_active_language = "us"
@@ -748,8 +691,8 @@ class Plugin:
         }
 
     async def send_key(self, text: str = ""):
-        global plugin_enabled, last_key_time, last_key_text, current_active_language
-        if not plugin_enabled or not text:
+        global last_key_time, last_key_text, current_active_language
+        if not text:
             return {"success": False}
 
         now = time.time()
@@ -757,8 +700,6 @@ class Plugin:
             return {"success": True, "debounced": True}
         last_key_text = text
         last_key_time = now
-
-        logger.info(f"Wayland-OSK typing: {repr(text)} (active lang: {current_active_language})")
 
         if text in NEUTRAL_KEYS:
             keycode, shift = NEUTRAL_KEYS[text]
