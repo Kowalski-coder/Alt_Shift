@@ -45,6 +45,14 @@ class UInputSetup(ctypes.Structure):
         ("ff_effects_max", ctypes.c_uint32),
     ]
 
+# C runtime libc setenv
+libc = None
+try:
+    libc = ctypes.CDLL("libc.so.6")
+    libc.setenv.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+except Exception as e:
+    logger.warning(f"Could not load libc.so.6: {e}")
+
 # X11 / XKB ctypes definitions for absolute layout switching
 libX11 = None
 try:
@@ -368,19 +376,42 @@ def call_kde_dbus(member: str, sig: str = "", arg: str = ""):
     except Exception as e:
         return False, str(e)
 
-def find_xauth_path(uid: int, homedir: str) -> str:
-    run_user = Path(f"/run/user/{uid}")
-    if run_user.exists():
-        for p in run_user.glob("xauth*"):
-            return str(p)
-    for p in Path("/tmp").glob(f"xauth_{uid}_*"):
-        return str(p)
+def open_x11_display(dpy_str: str = ":0"):
+    """
+    Finds and sets the active XAUTHORITY cookie and opens connection to the X11/Xwayland display.
+    """
+    if not libX11:
+        return None
+
+    candidates = []
+    # 1. User runtime xauth
+    for p in Path("/run/user").glob("*/xauth*"):
+        candidates.append(str(p))
+    # 2. Temp xauth
     for p in Path("/tmp").glob("xauth*"):
-        return str(p)
-    user_xauth = Path(homedir) / ".Xauthority"
-    if user_xauth.exists():
-        return str(user_xauth)
-    return ""
+        candidates.append(str(p))
+    # 3. User home .Xauthority
+    for p in Path("/home").glob("*/.Xauthority"):
+        candidates.append(str(p))
+
+    current_xauth = os.environ.get("XAUTHORITY")
+    if current_xauth:
+        candidates.insert(0, current_xauth)
+
+    for xauth in candidates:
+        if not os.path.exists(xauth):
+            continue
+        try:
+            if libc:
+                libc.setenv(b"XAUTHORITY", xauth.encode("utf-8"), 1)
+            os.environ["XAUTHORITY"] = xauth
+            dpy = libX11.XOpenDisplay(dpy_str.encode("utf-8"))
+            if dpy:
+                return dpy
+        except Exception:
+            pass
+
+    return None
 
 kde_layout_map = {}
 
@@ -419,10 +450,6 @@ def get_active_x11_group() -> int:
     """
     if not libX11:
         return None
-    username, uid, gid, homedir = get_user_info()
-    xauth = find_xauth_path(uid, homedir)
-    if xauth:
-        os.environ["XAUTHORITY"] = xauth
 
     displays = []
     if os.environ.get("DISPLAY"):
@@ -432,18 +459,17 @@ def get_active_x11_group() -> int:
             displays.append(d)
 
     for dpy_str in displays:
-        try:
-            dpy = libX11.XOpenDisplay(dpy_str.encode("utf-8"))
-            if not dpy:
-                continue
-            st = XkbStateRec()
-            if libX11.XkbGetState(dpy, 0x0100, ctypes.byref(st)) == 0:
-                grp = st.group
+        dpy = open_x11_display(dpy_str)
+        if dpy:
+            try:
+                st = XkbStateRec()
+                if libX11.XkbGetState(dpy, 0x0100, ctypes.byref(st)) == 0:
+                    grp = st.group
+                    libX11.XCloseDisplay(dpy)
+                    return grp
                 libX11.XCloseDisplay(dpy)
-                return grp
-            libX11.XCloseDisplay(dpy)
-        except Exception:
-            pass
+            except Exception:
+                pass
     return None
 
 def set_x11_layout_group(lang: str) -> bool:
@@ -455,11 +481,6 @@ def set_x11_layout_group(lang: str) -> bool:
         return False
 
     target_group = 1 if lang == "ru" else 0
-    username, uid, gid, homedir = get_user_info()
-    xauth = find_xauth_path(uid, homedir)
-    if xauth:
-        os.environ["XAUTHORITY"] = xauth
-
     displays = []
     if os.environ.get("DISPLAY"):
         displays.append(os.environ["DISPLAY"])
@@ -469,21 +490,20 @@ def set_x11_layout_group(lang: str) -> bool:
 
     success = False
     for dpy_str in displays:
-        try:
-            dpy = libX11.XOpenDisplay(dpy_str.encode("utf-8"))
-            if not dpy:
-                continue
-            st = XkbStateRec()
-            if libX11.XkbGetState(dpy, 0x0100, ctypes.byref(st)) == 0:
-                if st.group != target_group:
-                    libX11.XkbLockGroup(dpy, 0x0100, target_group)
-                    libX11.XFlush(dpy)
-                    time.sleep(0.01)
-                    logger.info(f"Locked X11 {dpy_str} XKB group: {st.group} -> {target_group} ({lang})")
-                success = True
-            libX11.XCloseDisplay(dpy)
-        except Exception as e:
-            logger.debug(f"X11 display {dpy_str} error: {e}")
+        dpy = open_x11_display(dpy_str)
+        if dpy:
+            try:
+                st = XkbStateRec()
+                if libX11.XkbGetState(dpy, 0x0100, ctypes.byref(st)) == 0:
+                    if st.group != target_group:
+                        libX11.XkbLockGroup(dpy, 0x0100, target_group)
+                        libX11.XFlush(dpy)
+                        time.sleep(0.01)
+                        logger.info(f"Locked X11 {dpy_str} XKB group: {st.group} -> {target_group} ({lang})")
+                    success = True
+                libX11.XCloseDisplay(dpy)
+            except Exception as e:
+                logger.debug(f"X11 display {dpy_str} error: {e}")
     return success
 
 def emit_alt_shift():
@@ -531,13 +551,17 @@ def sync_layout(lang: str):
             logger.debug(f"KDE layout sync error: {e}")
 
     # 2. X11 / Xwayland Absolute XKB LockGroup (Desktop & Game Mode)
-    set_x11_layout_group(lang_str)
+    ok_x11 = set_x11_layout_group(lang_str)
 
     # 3. If in Game Mode, verify if XKB group matched or if Alt+Shift fallback is required
     if not in_desktop:
         curr_grp = get_active_x11_group()
         if curr_grp is not None and curr_grp != target_idx:
             logger.info(f"Gamescope XKB group {curr_grp} != target {target_idx}, toggling Alt+Shift")
+            emit_alt_shift()
+        elif not ok_x11:
+            # Fallback if X11 was completely unreachable
+            logger.info("X11 unreachable, emitting Alt+Shift for Gamescope")
             emit_alt_shift()
 
 def auto_setup_system_xkb():
