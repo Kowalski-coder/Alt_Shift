@@ -14,7 +14,7 @@ try:
 except ImportError:
     import logging
     logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger("Wayland-OSK-Fix")
+    logger = logging.getLogger("Alt-Shift")
 
 # Linux uinput ioctl constants
 UI_DEV_CREATE = 0x5501
@@ -623,7 +623,7 @@ def init_uinput_device():
         setup.id.vendor = 0x28de
         setup.id.product = 0x1205
         setup.id.version = 1
-        setup.name = b"SteamDeck-OSK-Wayland-Bridge"
+        setup.name = b"SteamDeck-AltShift-Wayland-Bridge"
 
         fcntl.ioctl(fd, UI_DEV_SETUP, setup)
         fcntl.ioctl(fd, UI_DEV_CREATE)
@@ -743,8 +743,8 @@ class Plugin:
         gamescope_wayland_layout = 0
         auto_setup_system_xkb()
         init_uinput_device()
-        logger.info("Wayland OSK Fix plugin backend loaded cleanly.")
+        logger.info("Alt+Shift plugin backend loaded cleanly.")
 
     async def _unload(self):
         destroy_uinput_device()
-        logger.info("Wayland OSK Fix plugin backend unloaded.")
+        logger.info("Alt+Shift plugin backend unloaded.")

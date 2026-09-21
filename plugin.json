@@ -1,10 +1,10 @@
 {
-  "name": "Wayland OSK Fix",
+  "name": "Alt+Shift",
   "author": "Kowalski",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "flags": ["root"],
   "publish": {
-    "tags": ["utility", "keyboard", "wayland", "cachyos", "steamos"],
+    "tags": ["utility", "keyboard", "wayland", "steamos", "arch"],
     "description": "Исправляет ввод русских символов и смену раскладки на экранной клавиатуре Steam в Wayland и Game Mode.",
     "image": "https://raw.githubusercontent.com/SteamDeckHomebrew/decky-plugin-template/main/assets/preview.png"
   }
