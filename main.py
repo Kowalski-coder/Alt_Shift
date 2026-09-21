@@ -100,7 +100,6 @@ KEY_2 = 3
 KEY_3 = 4
 KEY_4 = 5
 KEY_5 = 6
-KEY_6 = 7
 KEY_7 = 8
 KEY_8 = 9
 KEY_9 = 10
@@ -307,6 +306,7 @@ uinput_fd = -1
 plugin_enabled = True
 current_cached_kde_layout = -1
 current_active_language = "us"
+gamescope_wayland_layout = 0  # 0=US, 1=RU (Tracks Gamescope's internal Wayland XKB state)
 last_key_time = 0
 last_key_text = None
 last_is_desktop = None
@@ -523,17 +523,19 @@ def emit_alt_shift():
 def sync_layout(lang: str):
     """
     lang: 'us' (English, 0) or 'ru' (Russian, 1)
-    Synchronizes layout state across Desktop Mode (KDE DBus + X11) and Game Mode (Xwayland XKB + Gamescope).
+    Synchronizes layout state across Desktop Mode (KDE DBus + X11) and Game Mode (Gamescope Wayland + Xwayland).
     """
-    global current_cached_kde_layout, current_active_language, last_is_desktop
+    global current_cached_kde_layout, current_active_language, gamescope_wayland_layout, last_is_desktop
     target_idx = 1 if (lang == "ru" or lang == 1) else 0
     lang_str = "ru" if target_idx == 1 else "us"
     current_active_language = lang_str
 
     in_desktop = is_desktop_mode()
 
+    # Reset state on mode transition
     if last_is_desktop is not None and last_is_desktop != in_desktop:
         current_cached_kde_layout = -1
+        gamescope_wayland_layout = 0
         destroy_uinput_device()
         init_uinput_device()
     last_is_desktop = in_desktop
@@ -549,20 +551,15 @@ def sync_layout(lang: str):
                     logger.info(f"KDE DBus: setLayout({kde_target}) -> {lang_str}")
         except Exception as e:
             logger.debug(f"KDE layout sync error: {e}")
-
-    # 2. X11 / Xwayland Absolute XKB LockGroup (Desktop & Game Mode)
-    ok_x11 = set_x11_layout_group(lang_str)
-
-    # 3. If in Game Mode, verify if XKB group matched or if Alt+Shift fallback is required
-    if not in_desktop:
-        curr_grp = get_active_x11_group()
-        if curr_grp is not None and curr_grp != target_idx:
-            logger.info(f"Gamescope XKB group {curr_grp} != target {target_idx}, toggling Alt+Shift")
+        set_x11_layout_group(lang_str)
+    else:
+        # 2. Game Mode (Gamescope Wayland compositor):
+        # Gamescope toggles its internal Wayland XKB state via Alt+Shift on the uinput keyboard
+        set_x11_layout_group(lang_str)
+        if gamescope_wayland_layout != target_idx:
+            logger.info(f"Gamescope: switching Wayland layout from {gamescope_wayland_layout} to {target_idx} ({lang_str})")
             emit_alt_shift()
-        elif not ok_x11:
-            # Fallback if X11 was completely unreachable
-            logger.info("X11 unreachable, emitting Alt+Shift for Gamescope")
-            emit_alt_shift()
+            gamescope_wayland_layout = target_idx
 
 def auto_setup_system_xkb():
     """
@@ -725,6 +722,7 @@ class Plugin:
             "success": True,
             "active_language": current_active_language,
             "is_desktop": is_desktop_mode(),
+            "gamescope_wayland_layout": gamescope_wayland_layout,
             "x11_group": get_active_x11_group()
         }
 
@@ -732,6 +730,7 @@ class Plugin:
         return {
             "active_language": current_active_language,
             "is_desktop": is_desktop_mode(),
+            "gamescope_wayland_layout": gamescope_wayland_layout,
             "x11_group": get_active_x11_group()
         }
 
@@ -775,8 +774,9 @@ class Plugin:
         return {"success": True}
 
     async def _main(self):
-        global current_active_language
+        global current_active_language, gamescope_wayland_layout
         current_active_language = "us"
+        gamescope_wayland_layout = 0
         auto_setup_system_xkb()
         init_uinput_device()
         logger.info("Wayland OSK Fix plugin backend loaded cleanly.")
