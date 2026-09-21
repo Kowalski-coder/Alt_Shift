@@ -35,10 +35,10 @@
 
 ## 📦 Установка
 
-1. Скачайте релизный архив **`Alt_Shift-v0.0.2.zip`** со страницы [Релизов](https://gitflic.ru/project/viktorkoval1997/alt_shift/release).
+1. Скачайте релизный архив **`Alt_Shift.zip`** со страницы [Релизов](https://gitflic.ru/project/viktorkoval1997/alt_shift/release).
 2. На Steam Deck откройте меню **Decky Loader** (кнопка `...`).
 3. Нажмите на **значок шестерёнки** (Настройки Decky Loader) -> вкладка **Разработчик (Developer)**.
-4. Выберите **«Установить плагин из ZIP»** и укажите скачанный архив `Alt_Shift-v0.0.2.zip`.
+4. Выберите **«Установить плагин из ZIP»** и укажите скачанный архив `Alt_Shift.zip`.
 
 ---
 
@@ -61,7 +61,7 @@ pnpm run build
 rm -rf /tmp/decky-pack && mkdir -p /tmp/decky-pack/Alt_Shift/dist
 cp dist/index.js /tmp/decky-pack/Alt_Shift/dist/
 cp main.py plugin.json package.json README.md LICENSE /tmp/decky-pack/Alt_Shift/
-(cd /tmp/decky-pack && zip -r ~/Alt_Shift-v0.0.2.zip Alt_Shift)
+(cd /tmp/decky-pack && zip -r ~/Alt_Shift.zip Alt_Shift)
 ```
 
 ---
