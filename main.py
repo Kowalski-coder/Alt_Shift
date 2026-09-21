@@ -575,6 +575,15 @@ def auto_setup_system_xkb():
                     stat = home.stat()
                     os.chown(env_d, stat.st_uid, stat.st_gid)
                     os.chown(env_file, stat.st_uid, stat.st_gid)
+
+                    # Hide KDE Plasma keyboard layout OSD indicator
+                    kxkb = home / ".config" / "kxkbrc"
+                    if kxkb.exists():
+                        content = kxkb.read_text(encoding="utf-8", errors="ignore")
+                        if "ShowLayoutIndicator=" not in content:
+                            content = content.replace("[Layout]\n", "[Layout]\nShowLayoutIndicator=false\nShowFlag=false\n")
+                            kxkb.write_text(content, encoding="utf-8")
+                            os.chown(kxkb, stat.st_uid, stat.st_gid)
                 except Exception:
                     pass
 
