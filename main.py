@@ -45,7 +45,7 @@ class UInputSetup(ctypes.Structure):
         ("ff_effects_max", ctypes.c_uint32),
     ]
 
-# X11 / XKB ctypes definitions for absolute Game Mode layout switching
+# X11 / XKB ctypes definitions for absolute layout switching
 libX11 = None
 try:
     libX11 = ctypes.CDLL("libX11.so.6")
@@ -222,7 +222,7 @@ NEUTRAL_KEYS = {
     '\x7f': (KEY_BACKSPACE, False),
     'Backspace': (KEY_BACKSPACE, False),
     'Escape': (KEY_ESC, False),
-    '\x1b': KEY_ESC,
+    '\x1b': (KEY_ESC, False),
     'ArrowLeft': (KEY_LEFT, False),
     '\x04': (KEY_LEFT, False),
     'ArrowRight': (KEY_RIGHT, False),
@@ -298,8 +298,10 @@ US_SYMBOLS = {
 uinput_fd = -1
 plugin_enabled = True
 current_cached_kde_layout = -1
+current_active_language = "us"
 last_key_time = 0
 last_key_text = None
+last_is_desktop = None
 
 def get_user_info():
     username = os.environ.get("DECKY_USER")
@@ -330,7 +332,6 @@ def get_user_info():
 def call_kde_dbus(member: str, sig: str = "", arg: str = ""):
     """
     Calls org.kde.KeyboardLayouts via busctl under the target user session.
-    Returns (success: bool, stdout: str)
     """
     username, uid, gid, homedir = get_user_info()
     bus_path = f"/run/user/{uid}/bus"
@@ -374,6 +375,8 @@ def find_xauth_path(uid: int, homedir: str) -> str:
             return str(p)
     for p in Path("/tmp").glob(f"xauth_{uid}_*"):
         return str(p)
+    for p in Path("/tmp").glob("xauth*"):
+        return str(p)
     user_xauth = Path(homedir) / ".Xauthority"
     if user_xauth.exists():
         return str(user_xauth)
@@ -382,10 +385,6 @@ def find_xauth_path(uid: int, homedir: str) -> str:
 kde_layout_map = {}
 
 def get_kde_target_layout(lang: str) -> int:
-    """
-    Dynamically finds the exact index of 'us' or 'ru' layout in KDE's layout list,
-    even if the user placed Russian first (ru,us) or has multiple layouts.
-    """
     global kde_layout_map
     try:
         ok, out = call_kde_dbus("getLayoutsList")
@@ -407,40 +406,63 @@ def get_kde_target_layout(lang: str) -> int:
         pass
     return kde_layout_map.get(lang, 1 if lang == "ru" else 0)
 
-def get_x11_target_group(dpy, lang: str) -> int:
-    """
-    Dynamically identifies which XKB group index (0..3) belongs to English vs Russian
-    by inspecting keysyms of KEY_Q (keycode 24) on the active X11 display.
-    """
+def is_desktop_mode() -> bool:
     try:
-        for grp in range(4):
-            sym = libX11.XKeycodeToKeysym(dpy, 24, grp * 2)
-            if lang == "us" and sym == 0x0071:  # 'q'
-                return grp
-            elif lang == "ru" and (0x0600 <= sym <= 0x06ff or 0x0400 <= sym <= 0x04ff):  # Cyrillic
-                return grp
+        res = subprocess.run(["pgrep", "-x", "kwin_wayland"], capture_output=True, timeout=0.2)
+        return res.returncode == 0
     except Exception:
-        pass
-    return 1 if lang == "ru" else 0
-
-def set_x11_layout_group(lang: str) -> bool:
-    """
-    Directly queries and locks the active X11 / Xwayland XKB layout group
-    using libX11 XkbLockGroup with dynamic group discovery and XAUTHORITY discovery.
-    Absolute, state-aware, never inverts.
-    """
-    if not libX11:
         return False
 
+def get_active_x11_group() -> int:
+    """
+    Returns the current real XKB layout group index (0=US, 1=RU) from X11/Xwayland.
+    """
+    if not libX11:
+        return None
     username, uid, gid, homedir = get_user_info()
     xauth = find_xauth_path(uid, homedir)
     if xauth:
         os.environ["XAUTHORITY"] = xauth
 
     displays = []
-    env_display = os.environ.get("DISPLAY")
-    if env_display:
-        displays.append(env_display)
+    if os.environ.get("DISPLAY"):
+        displays.append(os.environ["DISPLAY"])
+    for d in [":0", ":1"]:
+        if d not in displays:
+            displays.append(d)
+
+    for dpy_str in displays:
+        try:
+            dpy = libX11.XOpenDisplay(dpy_str.encode("utf-8"))
+            if not dpy:
+                continue
+            st = XkbStateRec()
+            if libX11.XkbGetState(dpy, 0x0100, ctypes.byref(st)) == 0:
+                grp = st.group
+                libX11.XCloseDisplay(dpy)
+                return grp
+            libX11.XCloseDisplay(dpy)
+        except Exception:
+            pass
+    return None
+
+def set_x11_layout_group(lang: str) -> bool:
+    """
+    Directly locks the XKB layout group on X11 / Xwayland via libX11.XkbLockGroup.
+    Absolute, verified, never inverts.
+    """
+    if not libX11:
+        return False
+
+    target_group = 1 if lang == "ru" else 0
+    username, uid, gid, homedir = get_user_info()
+    xauth = find_xauth_path(uid, homedir)
+    if xauth:
+        os.environ["XAUTHORITY"] = xauth
+
+    displays = []
+    if os.environ.get("DISPLAY"):
+        displays.append(os.environ["DISPLAY"])
     for d in [":0", ":1"]:
         if d not in displays:
             displays.append(d)
@@ -451,30 +473,18 @@ def set_x11_layout_group(lang: str) -> bool:
             dpy = libX11.XOpenDisplay(dpy_str.encode("utf-8"))
             if not dpy:
                 continue
-            target_group = get_x11_target_group(dpy, lang)
-            state = XkbStateRec()
-            if libX11.XkbGetState(dpy, 0x0100, ctypes.byref(state)) == 0:
-                curr = state.group
-                if curr != target_group:
+            st = XkbStateRec()
+            if libX11.XkbGetState(dpy, 0x0100, ctypes.byref(st)) == 0:
+                if st.group != target_group:
                     libX11.XkbLockGroup(dpy, 0x0100, target_group)
                     libX11.XFlush(dpy)
-                    time.sleep(0.015)
-                    logger.info(f"Locked X11 display {dpy_str} XKB group to {target_group} ({lang}, was {curr})")
+                    time.sleep(0.01)
+                    logger.info(f"Locked X11 {dpy_str} XKB group: {st.group} -> {target_group} ({lang})")
                 success = True
             libX11.XCloseDisplay(dpy)
         except Exception as e:
-            logger.debug(f"X11 display {dpy_str} lock error: {e}")
+            logger.debug(f"X11 display {dpy_str} error: {e}")
     return success
-
-gamescope_device_layout = 0
-last_is_desktop = None
-
-def is_desktop_mode() -> bool:
-    try:
-        res = subprocess.run(["pgrep", "-x", "kwin_wayland"], capture_output=True, timeout=0.2)
-        return res.returncode == 0
-    except Exception:
-        return False
 
 def emit_alt_shift():
     emit_raw_event(EV_KEY, KEY_LEFTALT, 1)
@@ -490,52 +500,12 @@ def emit_alt_shift():
     emit_raw_event(EV_SYN, SYN_REPORT, 0)
     time.sleep(0.015)
 
-def get_x11_state(lang_needed: str):
-    """
-    Directly inspects the real-time active XKB group and discovers
-    the exact target group index for the requested language.
-    """
-    if not libX11:
-        return None, None
-    username, uid, gid, homedir = get_user_info()
-    xauth = find_xauth_path(uid, homedir)
-    if xauth:
-        os.environ["XAUTHORITY"] = xauth
-
-    displays = []
-    env_display = os.environ.get("DISPLAY")
-    if env_display:
-        displays.append(env_display)
-    for d in [":0", ":1"]:
-        if d not in displays:
-            displays.append(d)
-
-    for dpy_str in displays:
-        try:
-            dpy = libX11.XOpenDisplay(dpy_str.encode("utf-8"))
-            if not dpy:
-                continue
-            st = XkbStateRec()
-            if libX11.XkbGetState(dpy, 0x0100, ctypes.byref(st)) != 0:
-                libX11.XCloseDisplay(dpy)
-                continue
-            current_group = st.group
-            target_group = get_x11_target_group(dpy, lang_needed)
-            libX11.XCloseDisplay(dpy)
-            return current_group, target_group
-        except Exception:
-            pass
-    return None, None
-
-current_active_language = "us"
-gamescope_active_layout = 0
-last_is_desktop = None
-
 def sync_layout(lang: str):
     """
-    lang: 'us' (English) or 'ru' (Russian), or int (0=US, 1=RU)
+    lang: 'us' (English, 0) or 'ru' (Russian, 1)
+    Synchronizes layout state across Desktop Mode (KDE DBus + X11) and Game Mode (Xwayland XKB + Gamescope).
     """
-    global current_cached_kde_layout, gamescope_active_layout, last_is_desktop, current_active_language
+    global current_cached_kde_layout, current_active_language, last_is_desktop
     target_idx = 1 if (lang == "ru" or lang == 1) else 0
     lang_str = "ru" if target_idx == 1 else "us"
     current_active_language = lang_str
@@ -543,37 +513,36 @@ def sync_layout(lang: str):
     in_desktop = is_desktop_mode()
 
     if last_is_desktop is not None and last_is_desktop != in_desktop:
-        current_active_language = "us"
-        gamescope_active_layout = 0
         current_cached_kde_layout = -1
         destroy_uinput_device()
         init_uinput_device()
     last_is_desktop = in_desktop
 
+    # 1. Desktop Mode: KDE DBus Layout Switch
     if in_desktop:
-        # Desktop Mode (KDE Plasma Wayland & X11)
-        set_x11_layout_group(lang_str)
         try:
             kde_target = get_kde_target_layout(lang_str)
             if current_cached_kde_layout != kde_target:
                 ok, out = call_kde_dbus("setLayout", "u", str(kde_target))
                 if ok:
                     current_cached_kde_layout = kde_target
-                    logger.info(f"Switched KDE layout to {kde_target} ({lang_str})")
+                    logger.info(f"KDE DBus: setLayout({kde_target}) -> {lang_str}")
         except Exception as e:
             logger.debug(f"KDE layout sync error: {e}")
-    else:
-        # Game Mode (Gamescope Wayland): 0=US, 1=RU
-        if gamescope_active_layout != target_idx:
+
+    # 2. X11 / Xwayland Absolute XKB LockGroup (Desktop & Game Mode)
+    set_x11_layout_group(lang_str)
+
+    # 3. If in Game Mode, verify if XKB group matched or if Alt+Shift fallback is required
+    if not in_desktop:
+        curr_grp = get_active_x11_group()
+        if curr_grp is not None and curr_grp != target_idx:
+            logger.info(f"Gamescope XKB group {curr_grp} != target {target_idx}, toggling Alt+Shift")
             emit_alt_shift()
-            gamescope_active_layout = target_idx
-            logger.info(f"Gamescope: toggled layout to {target_idx} ({lang_str})")
 
 def auto_setup_system_xkb():
     """
-    Self-contained auto-configuration:
-    Ensures system and user environment have us,ru layouts configured cleanly.
-    Runs with root privileges under Decky Loader.
+    Auto-configures XKB us,ru layout environment on host system.
     """
     try:
         # 1. Clean /etc/environment
@@ -632,7 +601,6 @@ def auto_setup_system_xkb():
                     stat = home.stat()
                     os.chown(env_d, stat.st_uid, stat.st_gid)
                     os.chown(env_file, stat.st_uid, stat.st_gid)
-                    logger.info(f"Auto-configured 10-xkb.conf for user {home.name}")
                 except Exception as e:
                     logger.warning(f"Failed to write user 10-xkb.conf for {home.name}: {e}")
 
@@ -679,7 +647,7 @@ def init_uinput_device():
         fcntl.ioctl(fd, UI_DEV_SETUP, setup)
         fcntl.ioctl(fd, UI_DEV_CREATE)
         uinput_fd = fd
-        logger.info("Pure ctypes UInput device initialized successfully.")
+        logger.info("UInput virtual keyboard device initialized successfully.")
     except Exception as e:
         logger.error(f"Failed to create UInput device: {e}")
 
@@ -724,6 +692,25 @@ def emit_keypress(keycode: int, shift: bool = False):
 
 
 class Plugin:
+    async def sync_layout(self, lang: str = "us"):
+        """
+        Explicit layout sync endpoint callable from frontend when OSK opens or switches layout.
+        """
+        sync_layout(lang)
+        return {
+            "success": True,
+            "active_language": current_active_language,
+            "is_desktop": is_desktop_mode(),
+            "x11_group": get_active_x11_group()
+        }
+
+    async def get_active_layout(self):
+        return {
+            "active_language": current_active_language,
+            "is_desktop": is_desktop_mode(),
+            "x11_group": get_active_x11_group()
+        }
+
     async def send_key(self, text: str = ""):
         global plugin_enabled, last_key_time, last_key_text, current_active_language
         if not plugin_enabled or not text:
@@ -764,9 +751,8 @@ class Plugin:
         return {"success": True}
 
     async def _main(self):
-        global current_active_language, gamescope_active_layout
+        global current_active_language
         current_active_language = "us"
-        gamescope_active_layout = 0
         auto_setup_system_xkb()
         init_uinput_device()
         logger.info("Wayland OSK Fix plugin backend loaded cleanly.")

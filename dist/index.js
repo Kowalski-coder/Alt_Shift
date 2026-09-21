@@ -65,6 +65,10 @@
     return GenIcon({"tag":"svg","attr":{"viewBox":"0 0 576 512"},"child":[{"tag":"path","attr":{"d":"M528 448H48c-26.51 0-48-21.49-48-48V112c0-26.51 21.49-48 48-48h480c26.51 0 48 21.49 48 48v288c0 26.51-21.49 48-48 48zM128 180v-40c0-6.627-5.373-12-12-12H76c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm96 0v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm96 0v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm96 0v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm96 0v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm-336 96v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm96 0v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm96 0v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm96 0v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm-336 96v-40c0-6.627-5.373-12-12-12H76c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm288 0v-40c0-6.627-5.373-12-12-12H172c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h232c6.627 0 12-5.373 12-12zm96 0v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12z"},"child":[]}]})(props);
   }
 
+  const RU_REGEX = /[а-яёА-ЯЁ]/;
+  const LATIN_REGEX = /[a-zA-Z]/;
+  let layoutCheckInterval = null;
+  let lastDetectedLang = null;
   function findActiveInput() {
       function searchDoc(doc) {
           try {
@@ -111,6 +115,74 @@
       catch (e) { }
       return null;
   }
+  function detectVisibleKeyboardLayout() {
+      try {
+          const docs = [document];
+          if (window.top && window.top !== window && window.top.document) {
+              docs.push(window.top.document);
+          }
+          for (const doc of docs) {
+              // Look for keyboard key elements in DOM
+              const keyElements = doc.querySelectorAll("button, div, span");
+              let foundRu = 0;
+              let foundUs = 0;
+              for (let i = 0; i < keyElements.length; i++) {
+                  const text = keyElements[i].textContent?.trim();
+                  if (text && text.length === 1) {
+                      if (RU_REGEX.test(text)) {
+                          foundRu++;
+                          if (foundRu >= 2)
+                              return "ru";
+                      }
+                      else if (LATIN_REGEX.test(text)) {
+                          foundUs++;
+                          if (foundUs >= 5 && foundRu === 0)
+                              return "us";
+                      }
+                  }
+              }
+              if (foundRu > 0)
+                  return "ru";
+              if (foundUs > 0)
+                  return "us";
+          }
+      }
+      catch (e) { }
+      return null;
+  }
+  function startLayoutObserver(serverApi) {
+      if (layoutCheckInterval) {
+          clearInterval(layoutCheckInterval);
+      }
+      layoutCheckInterval = setInterval(() => {
+          try {
+              const detected = detectVisibleKeyboardLayout();
+              if (detected && detected !== lastDetectedLang) {
+                  lastDetectedLang = detected;
+                  serverApi.callPluginMethod("sync_layout", { lang: detected });
+              }
+          }
+          catch (e) { }
+      }, 400);
+      // Also listen for pointer clicks on document to react immediately on layout switch button tap
+      const clickHandler = () => {
+          setTimeout(() => {
+              const detected = detectVisibleKeyboardLayout();
+              if (detected && detected !== lastDetectedLang) {
+                  lastDetectedLang = detected;
+                  serverApi.callPluginMethod("sync_layout", { lang: detected });
+              }
+          }, 50);
+      };
+      window.addEventListener("pointerdown", clickHandler, { passive: true });
+      window.addEventListener("click", clickHandler, { passive: true });
+  }
+  function stopLayoutObserver() {
+      if (layoutCheckInterval) {
+          clearInterval(layoutCheckInterval);
+          layoutCheckInterval = null;
+      }
+  }
   function installHook(serverApi) {
       try {
           const steamClient = window.SteamClient;
@@ -119,6 +191,14 @@
               window._orig_sendText_native = nativeFn;
               steamClient.Input.ControllerKeyboardSendText = function (text) {
                   try {
+                      if (RU_REGEX.test(text)) {
+                          lastDetectedLang = "ru";
+                          serverApi.callPluginMethod("sync_layout", { lang: "ru" });
+                      }
+                      else if (LATIN_REGEX.test(text)) {
+                          lastDetectedLang = "us";
+                          serverApi.callPluginMethod("sync_layout", { lang: "us" });
+                      }
                       const active = findActiveInput();
                       if (active) {
                           const doc = active.ownerDocument || document;
@@ -150,6 +230,7 @@
   }
   function uninstallHook() {
       try {
+          stopLayoutObserver();
           const steamClient = window.SteamClient;
           if (window._orig_sendText_native && steamClient?.Input) {
               steamClient.Input.ControllerKeyboardSendText = window._orig_sendText_native;
@@ -169,6 +250,7 @@
   };
   var index = deckyFrontendLib.definePlugin((serverApi) => {
       installHook(serverApi);
+      startLayoutObserver(serverApi);
       return {
           title: React__default["default"].createElement("div", { className: deckyFrontendLib.staticClasses.Title }, "Wayland OSK Fix"),
           content: React__default["default"].createElement(Content, null),
