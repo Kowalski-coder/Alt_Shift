@@ -14,6 +14,38 @@ const LATIN_REGEX = /[a-zA-Z]/;
 let layoutCheckInterval: any = null;
 let lastDetectedLang: string | null = null;
 
+function resetKeyboardLayoutToEnglish() {
+  try {
+    const docs = [document];
+    if (window.top && window.top !== window && window.top.document) {
+      docs.push(window.top.document);
+    }
+    for (const doc of docs) {
+      try {
+        const ls = doc.defaultView?.localStorage;
+        if (ls) {
+          for (let i = 0; i < ls.length; i++) {
+            const key = ls.key(i);
+            if (key && (key.includes("keyboard_layout") || key === "keyboard_layout")) {
+              try {
+                const raw = ls.getItem(key);
+                if (raw) {
+                  const val = JSON.parse(raw);
+                  if (val && typeof val === "object" && val.currentLayout !== 0) {
+                    val.currentLayout = 0;
+                    ls.setItem(key, JSON.stringify(val));
+                    console.log("[Wayland OSK Fix] Reset Steam OSK layout storage to QWERTY (0)");
+                  }
+                }
+              } catch (e) {}
+            }
+          }
+        }
+      } catch (e) {}
+    }
+  } catch (e) {}
+}
+
 function findActiveInput(): HTMLElement | null {
   function searchDoc(doc: Document): HTMLElement | null {
     try {
@@ -64,7 +96,6 @@ function detectVisibleKeyboardLayout(): "ru" | "us" | null {
     }
 
     for (const doc of docs) {
-      // Look for keyboard key elements in DOM
       const keyElements = doc.querySelectorAll("button, div, span");
       let foundRu = 0;
       let foundUs = 0;
@@ -101,9 +132,8 @@ function startLayoutObserver(serverApi: ServerAPI) {
         serverApi.callPluginMethod("sync_layout", { lang: detected });
       }
     } catch (e) {}
-  }, 400);
+  }, 300);
 
-  // Also listen for pointer clicks on document to react immediately on layout switch button tap
   const clickHandler = () => {
     setTimeout(() => {
       const detected = detectVisibleKeyboardLayout();
@@ -111,7 +141,7 @@ function startLayoutObserver(serverApi: ServerAPI) {
         lastDetectedLang = detected;
         serverApi.callPluginMethod("sync_layout", { lang: detected });
       }
-    }, 50);
+    }, 40);
   };
   window.addEventListener("pointerdown", clickHandler, { passive: true });
   window.addEventListener("click", clickHandler, { passive: true });
@@ -196,6 +226,8 @@ const Content: VFC = () => {
 };
 
 export default definePlugin((serverApi: ServerAPI) => {
+  resetKeyboardLayoutToEnglish();
+  serverApi.callPluginMethod("reset_game_mode", {});
   installHook(serverApi);
   startLayoutObserver(serverApi);
 

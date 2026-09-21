@@ -512,16 +512,16 @@ def set_x11_layout_group(lang: str) -> bool:
 def emit_alt_shift():
     emit_raw_event(EV_KEY, KEY_LEFTALT, 1)
     emit_raw_event(EV_SYN, SYN_REPORT, 0)
-    time.sleep(0.005)
+    time.sleep(0.01)
     emit_raw_event(EV_KEY, KEY_LEFTSHIFT, 1)
     emit_raw_event(EV_SYN, SYN_REPORT, 0)
-    time.sleep(0.005)
+    time.sleep(0.01)
     emit_raw_event(EV_KEY, KEY_LEFTSHIFT, 0)
     emit_raw_event(EV_SYN, SYN_REPORT, 0)
-    time.sleep(0.005)
+    time.sleep(0.01)
     emit_raw_event(EV_KEY, KEY_LEFTALT, 0)
     emit_raw_event(EV_SYN, SYN_REPORT, 0)
-    time.sleep(0.015)
+    time.sleep(0.02)
 
 def sync_layout(lang: str):
     """
@@ -531,20 +531,20 @@ def sync_layout(lang: str):
     global current_cached_kde_layout, current_active_language, gamescope_wayland_layout, last_is_desktop
     target_idx = 1 if (lang == "ru" or lang == 1) else 0
     lang_str = "ru" if target_idx == 1 else "us"
-    current_active_language = lang_str
 
     in_desktop = is_desktop_mode()
 
-    # Reset state on mode transition
+    # Mode transition tracking (Reset without destroying uinput device)
     if last_is_desktop is not None and last_is_desktop != in_desktop:
         current_cached_kde_layout = -1
         gamescope_wayland_layout = 0
-        destroy_uinput_device()
-        init_uinput_device()
+        current_active_language = "us"
+        logger.info(f"Mode changed: Desktop={in_desktop}. Gamescope Wayland state reset to 0 (US)")
     last_is_desktop = in_desktop
 
     # 1. Desktop Mode: KDE DBus Layout Switch + X11
     if in_desktop:
+        current_active_language = lang_str
         try:
             kde_target = get_kde_target_layout(lang_str)
             if current_cached_kde_layout != kde_target:
@@ -557,12 +557,12 @@ def sync_layout(lang: str):
         set_x11_layout_group(lang_str)
     else:
         # 2. Game Mode (Gamescope Wayland compositor):
-        # Gamescope toggles its internal Wayland XKB state via Alt+Shift on the uinput keyboard
         set_x11_layout_group(lang_str)
         if gamescope_wayland_layout != target_idx:
             logger.info(f"Gamescope: switching Wayland layout from {gamescope_wayland_layout} to {target_idx} ({lang_str})")
             emit_alt_shift()
             gamescope_wayland_layout = target_idx
+        current_active_language = lang_str
 
 def auto_setup_system_xkb():
     """
@@ -729,6 +729,16 @@ class Plugin:
             "x11_group": get_active_x11_group()
         }
 
+    async def reset_game_mode(self):
+        """
+        Resets both system and Game Mode layout tracking to English (US).
+        """
+        global gamescope_wayland_layout, current_active_language
+        gamescope_wayland_layout = 0
+        current_active_language = "us"
+        sync_layout("us")
+        return {"success": True, "active_language": "us"}
+
     async def get_active_layout(self):
         return {
             "active_language": current_active_language,
@@ -760,11 +770,13 @@ class Plugin:
                 keycode, shift = NEUTRAL_KEYS[ch]
                 emit_keypress(keycode, shift)
             elif ch in RU_TO_EVDEV:
-                sync_layout("ru")
+                if current_active_language != "ru":
+                    sync_layout("ru")
                 keycode, shift = RU_TO_EVDEV[ch]
                 emit_keypress(keycode, shift)
             elif ch in LATIN_TO_EVDEV:
-                sync_layout("us")
+                if current_active_language != "us":
+                    sync_layout("us")
                 keycode, shift = LATIN_TO_EVDEV[ch]
                 emit_keypress(keycode, shift)
             elif current_active_language == "ru" and ch in RU_SYMBOLS:

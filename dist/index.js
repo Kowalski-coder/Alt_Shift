@@ -69,6 +69,40 @@
   const LATIN_REGEX = /[a-zA-Z]/;
   let layoutCheckInterval = null;
   let lastDetectedLang = null;
+  function resetKeyboardLayoutToEnglish() {
+      try {
+          const docs = [document];
+          if (window.top && window.top !== window && window.top.document) {
+              docs.push(window.top.document);
+          }
+          for (const doc of docs) {
+              try {
+                  const ls = doc.defaultView?.localStorage;
+                  if (ls) {
+                      for (let i = 0; i < ls.length; i++) {
+                          const key = ls.key(i);
+                          if (key && (key.includes("keyboard_layout") || key === "keyboard_layout")) {
+                              try {
+                                  const raw = ls.getItem(key);
+                                  if (raw) {
+                                      const val = JSON.parse(raw);
+                                      if (val && typeof val === "object" && val.currentLayout !== 0) {
+                                          val.currentLayout = 0;
+                                          ls.setItem(key, JSON.stringify(val));
+                                          console.log("[Wayland OSK Fix] Reset Steam OSK layout storage to QWERTY (0)");
+                                      }
+                                  }
+                              }
+                              catch (e) { }
+                          }
+                      }
+                  }
+              }
+              catch (e) { }
+          }
+      }
+      catch (e) { }
+  }
   function findActiveInput() {
       function searchDoc(doc) {
           try {
@@ -122,7 +156,6 @@
               docs.push(window.top.document);
           }
           for (const doc of docs) {
-              // Look for keyboard key elements in DOM
               const keyElements = doc.querySelectorAll("button, div, span");
               let foundRu = 0;
               let foundUs = 0;
@@ -163,8 +196,7 @@
               }
           }
           catch (e) { }
-      }, 400);
-      // Also listen for pointer clicks on document to react immediately on layout switch button tap
+      }, 300);
       const clickHandler = () => {
           setTimeout(() => {
               const detected = detectVisibleKeyboardLayout();
@@ -172,7 +204,7 @@
                   lastDetectedLang = detected;
                   serverApi.callPluginMethod("sync_layout", { lang: detected });
               }
-          }, 50);
+          }, 40);
       };
       window.addEventListener("pointerdown", clickHandler, { passive: true });
       window.addEventListener("click", clickHandler, { passive: true });
@@ -249,6 +281,8 @@
               React__default["default"].createElement("div", { style: { fontSize: "0.85em", color: "#8f98a0", marginTop: "12px", lineHeight: "1.4" } }, "\u0412\u044B \u043C\u043E\u0436\u0435\u0442\u0435 \u0441\u043A\u0440\u044B\u0442\u044C \u043F\u043B\u0430\u0433\u0438\u043D \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 Decky Loader, \u043E\u043D \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442 \u0440\u0430\u0431\u043E\u0442\u0430\u0442\u044C \u0432 \u0444\u043E\u043D\u0435"))));
   };
   var index = deckyFrontendLib.definePlugin((serverApi) => {
+      resetKeyboardLayoutToEnglish();
+      serverApi.callPluginMethod("reset_game_mode", {});
       installHook(serverApi);
       startLayoutObserver(serverApi);
       return {
