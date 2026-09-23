@@ -238,6 +238,23 @@ current_cached_kde_layout = -1
 gamescope_active_layout = 0  # 0: US, 1: RU
 last_key_time = 0
 last_key_text = None
+kde_ru_idx = 1
+kde_us_idx = 0
+
+def detect_kde_layout_indices():
+    global kde_ru_idx, kde_us_idx
+    try:
+        ok, out = call_kde_dbus("getLayoutsList")
+        if ok and out:
+            import re
+            tokens = re.findall(chr(34) + r"([^" + chr(34) + r"]*)" + chr(34), out)
+            layouts = [tokens[i] for i in range(0, len(tokens), 3) if i < len(tokens)]
+            if "ru" in layouts:
+                kde_ru_idx = layouts.index("ru")
+            if "us" in layouts:
+                kde_us_idx = layouts.index("us")
+    except Exception as e:
+        logger.debug(f"detect_kde_layout_indices error: {e}")
 
 def get_user_info():
     username = os.environ.get("DECKY_USER")
@@ -401,12 +418,14 @@ def sync_layout(target_layout: int):
     global current_cached_kde_layout, gamescope_active_layout
 
     # 1. Desktop Mode (KDE Plasma DBus)
-    ok, out = call_kde_dbus("setLayout", "u", str(target_layout))
+    detect_kde_layout_indices()
+    kde_target = kde_ru_idx if target_layout == 1 else kde_us_idx
+    ok, out = call_kde_dbus("setLayout", "u", str(kde_target))
     if ok:
-        if current_cached_kde_layout != target_layout:
-            current_cached_kde_layout = target_layout
+        if current_cached_kde_layout != kde_target:
+            current_cached_kde_layout = kde_target
             time.sleep(0.035)
-            logger.info(f"Switched KDE layout to {target_layout}")
+            logger.info(f"Switched KDE layout to index {kde_target} (target={'RU' if target_layout==1 else 'US'})")
         return
 
     # 2. Game Mode (Gamescope Wayland)
@@ -513,7 +532,7 @@ class Plugin:
                 sync_layout(0)
                 keycode, shift = CHAR_TO_EVDEV[ch]
                 emit_keypress(keycode, shift)
-            elif current_cached_kde_layout == 1 and ch in RU_SYMBOLS:
+            elif current_cached_kde_layout == kde_ru_idx and ch in RU_SYMBOLS:
                 sync_layout(1)
                 keycode, shift = RU_SYMBOLS[ch]
                 emit_keypress(keycode, shift)
