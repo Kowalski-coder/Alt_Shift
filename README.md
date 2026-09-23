@@ -2,99 +2,99 @@
 
 <div align="center">
 
-**Decky Loader plugin: Fixes Steam On-Screen Keyboard (OSK) input and layout switching in Wayland & Game Mode**
+**Плагин для Decky Loader: исправление ввода экранной клавиатуры Steam (OSK) в Wayland и Game Mode**
 
-[ English ](README.md) • [ Русский ](README_RU.md)
+[ English ](README_EN.md) • [ Русский ](README.md)
 
-[![Decky Loader](https://img.shields.io/badge/Decky_Loader-Plugin-00adff?style=for-the-badge&logo=steamdeck&logoColor=white)](https://deckyloader.ru/)
-[![GitHub Release](https://img.shields.io/github/v/release/Kowalski-coder/Alt_Shift?style=for-the-badge&color=green)](https://github.com/Kowalski-coder/Alt_Shift/releases)
+[![Decky Loader Россия](https://img.shields.io/badge/Decky_Loader-Россия-00adff?style=for-the-badge&logo=steamdeck&logoColor=white)](https://deckyloader.ru/)
+[![Release](https://img.shields.io/badge/Release-v0.0.4-green?style=for-the-badge)](https://github.com/Kowalski-coder/Alt_Shift/releases)
 [![License](https://img.shields.io/badge/License-BSD_3--Clause-blue?style=for-the-badge)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-SteamOS_%7C_Arch_Wayland-orange?style=for-the-badge)](https://archlinux.org/)
 
 </div>
 
-A plugin for **[Decky Loader](https://deckyloader.ru/)** that resolves Steam virtual on-screen keyboard (OSK) input and layout switching issues in **Wayland / X11** (KDE Plasma Desktop Mode) and **Game Mode (Gamescope)** on SteamOS and other Arch-based distributions.
+Плагин для каталога **[Decky Loader Россия](https://deckyloader.ru/)** ([репозиторий на GitFlic](https://gitflic.ru/project/rosakodu/decky-loader)), полностью исправляющий ввод с виртуальной экранной клавиатуры Steam (OSK) в окружении **Wayland / X11** (KDE Plasma Desktop Mode) и **Game Mode (Gamescope)** на SteamOS и других arch-based дистрибутивах.
 
 ---
 
-## 📌 Background: What was the issue?
+## 📌 В чём была проблема?
 
-Steam's native on-screen keyboard engine (`steamui.so`) emulates keystrokes using the legacy X11 protocol `XTestFakeKeyEvent`.
-In modern Wayland sessions:
-1. **Input blocked in native Wayland windows:** Wayland compositors (KWin Wayland, Gamescope) isolate client windows from synthetic XTest events, causing the OSK to fail to type or output unwanted numbers (`'1'`) instead of characters.
-2. **Missing secondary layouts in X11/XKB:** Attempting to type non-Latin/Cyrillic characters causes `XKeysymToKeycode` failures resulting in keycode 2 (`KEY_1`).
-3. **Double / Triple typing:** Naive injection attempts often result in duplicate or triplicate key presses per touch.
-4. **Layout desynchronization:** Toggling language layouts on the virtual keyboard does not propagate to the system compositor.
-
----
-
-## ✨ Features
-
-- ⌨️ **Kernel-level hardware input via Linux `/dev/uinput`:** Direct keystroke injection through virtual kernel input device (`evdev`). Compatible with all Wayland and XWayland windows, games, and terminals.
-- 🎯 **Clean single-strike input:** Intercepts `SteamClient.Input.ControllerKeyboardSendText` in Steam CEF to prevent character duplication.
-- 🔄 **Dynamic layout synchronization:**
-  - **Desktop Mode (KDE Plasma):** Instantaneous layout switching via D-Bus (`org.kde.keyboard /Layouts`) with dynamic layout index discovery.
-  - **Game Mode (Gamescope):** Automatic layout synchronization upon character input.
-- 🇷🇺 **Comprehensive Cyrillic support:** Correct input for all Cyrillic letters (uppercase and lowercase), punctuation, digits, and special keys (`Backspace`, `Enter`, `Tab`, arrows, `Escape`).
-- ⚡ **Zero-Reboot Setup:** Automatically initializes system XKB environment and KDE daemon states on startup — no console reboot required after installation.
-- 🎛 **Minimalist footprint:** No cluttered UI in Quick Access Menu (QAM). Can be hidden in Decky Loader settings while continuing to run in the background.
+Родной движок виртуальной клавиатуры Steam (`steamui.so`) эмулирует нажатия клавиш через устаревший протокол X11 `XTestFakeKeyEvent`.
+В современных Wayland-сессиях:
+1. **Блокировка ввода в нативные Wayland-окна:** Wayland-композиторы (KWin Wayland, Gamescope) изолируют окна от синтетических событий XTest, из-за чего экранная клавиатура в ряде приложений не печатает вообще либо печатает цифры (`'1'`) вместо букв.
+2. **Отсутствие русской раскладки в X11/XKB:** При попытке напечатать русский символ `XKeysymToKeycode` завершается с ошибкой и подставляет keycode 2 (`KEY_1`).
+3. **Дублирование и троение символов:** При попытке стандартной трансляции клавиши дублировались (по 2-3 одинаковых символа на одно нажатие).
+4. **Рассинхронизация языка:** Переключение раскладки на экранной клавиатуре не передавалось системному композитору.
 
 ---
 
-## 📦 Installation
+## ✨ Возможности плагина
 
-1. Download the release archive **`Alt_Shift.zip`** from **[GitHub Releases](https://github.com/Kowalski-coder/Alt_Shift/releases)** (or [GitFlic Mirror](https://gitflic.ru/project/viktorkoval1997/alt_shift/release)).
-2. On your Steam Deck, open the **Decky Loader** menu (`...` button).
-3. Click the **Gear icon** (Decky Loader Settings) -> **Developer** tab.
-4. Select **"Install plugin from ZIP"** and choose the downloaded `Alt_Shift.zip`.
+- ⌨️ **Аппаратный ввод через Linux `/dev/uinput`:** Прямая трансляция нажатий клавиш через виртуальное ядровое устройство ввода (`evdev`). Работает в любых Wayland и XWayland окнах, играх и терминале.
+- 🎯 **Одиночный и чистый ввод:** Перехват вызовов `SteamClient.Input.ControllerKeyboardSendText` в интерфейсе Steam CEF и подавление дублирования (никакого двоения или троения символов).
+- 🔄 **Автоматическая динамическая синхронизация раскладок:**
+  - **Режим рабочего стола (KDE Plasma):** Мгновенное переключение раскладок через системную шину D-Bus (`org.kde.keyboard /Layouts`) с динамическим определением индексов языков.
+  - **Игровой режим (Gamescope):** Синхронизация раскладки при вводе символов.
+- 🇷🇺 **Полная поддержка русской раскладки:** Корректный ввод всех 33 букв русского алфавита в строчном и заглавном регистрах, знаков препинания, цифр и спецклавиш (`Backspace`, `Enter`, `Tab`, стрелки, `Escape`).
+- ⚡ **Работа сразу из коробки (Zero-Reboot Setup):** Плагин при загрузке автоматически конфигурирует системные переменные окружения XKB и службы KDE на лету — перезагрузка устройства после установки не требуется.
+- 🎛 **Минималистичный интерфейс:** Не перегружает меню Quick Access Menu (QAM). Плагин можно скрыть в настройках Decky Loader — он продолжит работать в фоне.
 
 ---
 
-## 🛠 Building from source
+## 📦 Установка
 
-Requires **Node.js** and **pnpm** (or npm):
+1. Скачайте релизный архив **`Alt_Shift.zip`** со страницы [Релизов на GitHub](https://github.com/Kowalski-coder/Alt_Shift/releases) (или [зеркала на GitFlic](https://gitflic.ru/project/viktorkoval1997/alt_shift/release)).
+2. На Steam Deck откройте меню **Decky Loader** (кнопка `...`).
+3. Нажмите на **значок шестерёнки** (Настройки Decky Loader) -> вкладка **Разработчик (Developer)**.
+4. Выберите **«Установить плагин из ZIP»** и укажите скачанный архив `Alt_Shift.zip`.
+
+---
+
+## 🛠 Сборка из исходников
+
+Для сборки проекта требуются **Node.js** и **pnpm** (или npm):
 
 ```bash
-# Clone the repository
+# Клонировать репозиторий
 git clone https://github.com/Kowalski-coder/Alt_Shift.git
 cd Alt_Shift
 
-# Install dependencies
+# Установить зависимости
 pnpm install
 
-# Build frontend bundle
+# Собрать фронтенд
 pnpm run build
 
-# Package release ZIP archive
+# Упаковать релизный ZIP-архив
 rm -rf /tmp/decky-pack && mkdir -p /tmp/decky-pack/Alt_Shift/dist
 cp dist/index.js /tmp/decky-pack/Alt_Shift/dist/
-cp main.py plugin.json package.json README.md README_RU.md LICENSE /tmp/decky-pack/Alt_Shift/
+cp main.py plugin.json package.json README.md README_EN.md LICENSE /tmp/decky-pack/Alt_Shift/
 (cd /tmp/decky-pack && zip -r ~/Alt_Shift.zip Alt_Shift)
 ```
 
 ---
 
-## 📁 Project Structure
+## 📁 Структура проекта
 
 ```text
 Alt_Shift/
 ├── dist/
-│   └── index.js           # Compiled frontend (Decky IIFE bundle)
+│   └── index.js           # Скомпилированный фронтенд (Decky IIFE bundle)
 ├── src/
-│   └── index.tsx          # Steam CEF hook & QAM interface component
-├── main.py                # Python backend (uinput driver, D-Bus XKB sync)
-├── plugin.json            # Decky Loader plugin manifest
-├── package.json           # Package description & build scripts
-├── tsconfig.json          # TypeScript configuration
-├── rollup.config.js       # Rollup bundler configuration
-├── LICENSE                # BSD-3-Clause License
-├── README.md              # Documentation (English)
-└── README_RU.md           # Documentation (Russian)
+│   └── index.tsx          # Исходный код хука Steam CEF и QAM интерфейса
+├── main.py                # Python бэкенд (uinput драйвер, D-Bus XKB синхронизация)
+├── plugin.json            # Манифест плагина для Decky Loader
+├── package.json           # Описание пакета и скрипты сборки
+├── tsconfig.json          # Конфигурация TypeScript
+├── rollup.config.js       # Конфигурация бандлера Rollup
+├── LICENSE                # Лицензия BSD-3-Clause
+├── README.md              # Документация проекта (Русский)
+└── README_EN.md           # Documentation (English)
 ```
 
 ---
 
-## 👤 Author & License
+## 👤 Автор и лицензия
 
-- **Author:** [Kowalski](https://github.com/Kowalski-coder)
-- **License:** [BSD-3-Clause](LICENSE)
+- **Автор:** [Kowalski](https://github.com/Kowalski-coder) (@viktorkoval1997)
+- **Лицензия:** [BSD-3-Clause](LICENSE)
