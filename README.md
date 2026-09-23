@@ -3,7 +3,7 @@
 [![Decky Loader Россия](https://img.shields.io/badge/Decky_Loader-Россия-00adff?style=for-the-badge&logo=steamdeck&logoColor=white)](https://deckyloader.ru/)
 [![License](https://img.shields.io/badge/License-BSD_3--Clause-blue?style=for-the-badge)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-SteamOS_%7C_Arch_Wayland-orange?style=for-the-badge)](https://archlinux.org/)
-[![Version](https://img.shields.io/badge/Version-0.0.3-green?style=for-the-badge)](package.json)
+[![Version](https://img.shields.io/badge/Version-0.0.4-green?style=for-the-badge)](package.json)
 
 Плагин для каталога **[Decky Loader Россия](https://deckyloader.ru/)** ([репозиторий на GitFlic](https://gitflic.ru/project/rosakodu/decky-loader)), полностью исправляющий ввод с виртуальной экранной клавиатуры Steam (OSK) в окружении **Wayland / X11** (KDE Plasma Desktop Mode) и **Game Mode (Gamescope)** на SteamOS и других arch-based дистрибутивах.
 

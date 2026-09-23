@@ -405,9 +405,13 @@ def auto_setup_system_xkb():
             kwargs["user"] = uid
             kwargs["group"] = gid
         try:
+            subprocess.run(["systemctl", "--user", "import-environment", "XKB_DEFAULT_LAYOUT", "XKB_DEFAULT_OPTIONS"], **kwargs)
             subprocess.run(["systemctl", "--user", "set-environment", "XKB_DEFAULT_LAYOUT=us,ru", "XKB_DEFAULT_OPTIONS=grp:alt_shift_toggle"], **kwargs)
             subprocess.run(["dbus-update-activation-environment", "--systemd", "XKB_DEFAULT_LAYOUT=us,ru", "XKB_DEFAULT_OPTIONS=grp:alt_shift_toggle"], **kwargs)
+            subprocess.run(["setxkbmap", "-layout", "us,ru", "-option", "grp:alt_shift_toggle"], **kwargs)
             subprocess.run(["busctl", "--user", "call", "org.kde.KWin", "/KWin", "org.kde.KWin", "reconfigure"], **kwargs)
+            subprocess.run(["busctl", "--user", "call", "org.kde.kded6", "/kded", "org.kde.kded6", "reconfigure"], **kwargs)
+            subprocess.run(["busctl", "--user", "call", "org.kde.kded5", "/kded", "org.kde.kded5", "reconfigure"], **kwargs)
         except Exception:
             pass
 
@@ -542,6 +546,7 @@ class Plugin:
     async def _main(self):
         auto_setup_system_xkb()
         init_uinput_device()
+        detect_kde_layout_indices()
         logger.info("Alt_Shift plugin backend loaded cleanly.")
 
     async def _unload(self):
