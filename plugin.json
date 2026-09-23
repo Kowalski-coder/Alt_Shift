@@ -1,7 +1,7 @@
 {
   "name": "Alt_Shift",
   "author": "Kowalski",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "flags": ["root"],
   "publish": {
     "tags": ["utility", "keyboard", "wayland", "steamos", "arch"],
