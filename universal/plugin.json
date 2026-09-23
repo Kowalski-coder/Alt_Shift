@@ -1,0 +1,11 @@
+{
+  "name": "Alt_Shift_Universal",
+  "author": "Kowalski",
+  "version": "0.1.0",
+  "flags": ["root"],
+  "publish": {
+    "tags": ["utility", "keyboard", "wayland", "steamos", "arch", "multilingual"],
+    "description": "Универсальное исправление ввода экранной клавиатуры Steam (OSK) для любых комбинаций языков в Wayland и Game Mode.",
+    "image": "https://raw.githubusercontent.com/SteamDeckHomebrew/decky-plugin-template/main/assets/preview.png"
+  }
+}

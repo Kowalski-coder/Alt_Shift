@@ -209,12 +209,18 @@ RU_SYMBOLS = {
 
 SPECIAL_KEYS = {
     'Backspace': KEY_BACKSPACE,
+    'Delete': KEY_BACKSPACE,
     '\x02': KEY_BACKSPACE,
     '\x08': KEY_BACKSPACE,
     '\x7f': KEY_BACKSPACE,
     'Enter': KEY_ENTER,
+    'Return': KEY_ENTER,
+    'Submit': KEY_ENTER,
+    'Done': KEY_ENTER,
+    '\x01': KEY_ENTER,
     '\r': KEY_ENTER,
     '\n': KEY_ENTER,
+    '\r\n': KEY_ENTER,
     '\x03': KEY_ENTER,
     '\x0a': KEY_ENTER,
     '\x0d': KEY_ENTER,
@@ -222,6 +228,7 @@ SPECIAL_KEYS = {
     '\t': KEY_TAB,
     '\x09': KEY_TAB,
     'Escape': KEY_ESC,
+    'Esc': KEY_ESC,
     '\x1b': KEY_ESC,
     'ArrowLeft': KEY_LEFT,
     '\x04': KEY_LEFT,
@@ -499,7 +506,7 @@ def emit_keypress(keycode: int, shift: bool = False):
 
     emit_raw_event(EV_KEY, keycode, 1)
     emit_raw_event(EV_SYN, SYN_REPORT, 0)
-    time.sleep(0.01)
+    time.sleep(0.02)
     emit_raw_event(EV_KEY, keycode, 0)
     emit_raw_event(EV_SYN, SYN_REPORT, 0)
 
@@ -512,20 +519,33 @@ def emit_keypress(keycode: int, shift: bool = False):
 class Plugin:
     async def send_key(self, text: str = ""):
         global last_key_time, last_key_text
-        if not text:
+        if text is None or text == "":
             return {"success": False}
 
         now = time.time()
-        if text not in ['\x02', '\x08', '\r', '\n', '\t', 'Backspace', 'Enter', 'Tab'] and text == last_key_text and (now - last_key_time) < 0.015:
+        is_special = (
+            text in SPECIAL_KEYS or
+            text in ['Enter', 'Return', 'Submit', 'Done', '\x01', '\r', '\n', '\r\n', '\x03', '\x0a', '\x0d', '\x02', '\x08', '\x7f', '\t', 'Backspace', 'Tab', 'Escape']
+        )
+
+        if not is_special and text == last_key_text and (now - last_key_time) < 0.015:
             return {"success": True, "debounced": True}
         last_key_text = text
         last_key_time = now
 
         if text in SPECIAL_KEYS:
             emit_keypress(SPECIAL_KEYS[text], False)
+            logger.info(f"Emitted special key {repr(text)} -> keycode {SPECIAL_KEYS[text]}")
             return {"success": True}
 
-        for ch in text:
+        logger.info(f"Emitting text: {repr(text)}")
+        i = 0
+        while i < len(text):
+            if text[i:i+2] == '\r\n':
+                emit_keypress(KEY_ENTER, False)
+                i += 2
+                continue
+            ch = text[i]
             if ch in SPECIAL_KEYS:
                 emit_keypress(SPECIAL_KEYS[ch], False)
             elif ch in RU_TO_EVDEV:
@@ -540,6 +560,7 @@ class Plugin:
                 sync_layout(1)
                 keycode, shift = RU_SYMBOLS[ch]
                 emit_keypress(keycode, shift)
+            i += 1
 
         return {"success": True}
 

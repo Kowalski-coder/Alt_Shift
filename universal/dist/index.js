@@ -63,154 +63,82 @@
   // THIS FILE IS AUTO GENERATED
   function FaKeyboard (props) {
     return GenIcon({"tag":"svg","attr":{"viewBox":"0 0 576 512"},"child":[{"tag":"path","attr":{"d":"M528 448H48c-26.51 0-48-21.49-48-48V112c0-26.51 21.49-48 48-48h480c26.51 0 48 21.49 48 48v288c0 26.51-21.49 48-48 48zM128 180v-40c0-6.627-5.373-12-12-12H76c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm96 0v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm96 0v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm96 0v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm96 0v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm-336 96v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm96 0v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm96 0v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm96 0v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm-336 96v-40c0-6.627-5.373-12-12-12H76c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12zm288 0v-40c0-6.627-5.373-12-12-12H172c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h232c6.627 0 12-5.373 12-12zm96 0v-40c0-6.627-5.373-12-12-12h-40c-6.627 0-12 5.373-12 12v40c0 6.627 5.373 12 12 12h40c6.627 0 12-5.373 12-12z"},"child":[]}]})(props);
+  }function FaCheckCircle (props) {
+    return GenIcon({"tag":"svg","attr":{"viewBox":"0 0 512 512"},"child":[{"tag":"path","attr":{"d":"M504 256c0 136.967-111.033 248-248 248S8 392.967 8 256 119.033 8 256 8s248 111.033 248 248zM227.314 387.314l184-184c6.248-6.248 6.248-16.379 0-22.627l-22.627-22.627c-6.248-6.249-16.379-6.249-22.628 0L216 308.118l-70.059-70.059c-6.248-6.248-16.379-6.248-22.628 0l-22.627 22.627c-6.248 6.248-6.248 16.379 0 22.627l104 104c6.249 6.249 16.379 6.249 22.628.001z"},"child":[]}]})(props);
   }
 
-  function handleIncomingInput(text, serverApi) {
-      try {
-          if (text === undefined || text === null || text === "")
-              return;
-          const isEnter = (text === "\x01" ||
-              text === "\r" ||
-              text === "\n" ||
-              text === "\r\n" ||
-              text === "\x03" ||
-              text === "\x0a" ||
-              text === "\x0d" ||
-              text === "Enter" ||
-              text === "Return" ||
-              text === "Submit" ||
-              text === "Done");
-          const isBackspace = (text === "\x02" ||
-              text === "\x08" ||
-              text === "\x7f" ||
-              text === "Backspace" ||
-              text === "Delete");
-          const payload = isEnter ? "Enter" : (isBackspace ? "Backspace" : text);
-          serverApi.callPluginMethod("send_key", { text: payload });
-      }
-      catch (err) {
-          console.error("[Alt_Shift] handleIncomingInput error:", err);
-      }
-  }
+  const KeyboardIcon = FaKeyboard;
+  const CheckIcon = FaCheckCircle;
   function installHook(serverApi) {
       try {
           const steamClient = window.SteamClient;
-          if (!steamClient?.Input)
-              return;
-          // 1. ControllerKeyboardSendText (typing text / enter)
-          const nativeSendText = window._orig_sendText_native || steamClient.Input.ControllerKeyboardSendText;
-          if (nativeSendText) {
-              window._orig_sendText_native = nativeSendText;
+          const nativeFn = window._orig_sendText_native || (steamClient?.Input?.ControllerKeyboardSendText);
+          if (nativeFn) {
+              window._orig_sendText_native = nativeFn;
               steamClient.Input.ControllerKeyboardSendText = function (text) {
-                  handleIncomingInput(text, serverApi);
-              };
-              console.log("[Alt_Shift] Hooked ControllerKeyboardSendText.");
-          }
-          // 2. ControllerKeyboardSetKeyState (Keycodes / Triggers like L2)
-          const nativeSetKeyState = window._orig_setKeyState_native || steamClient.Input.ControllerKeyboardSetKeyState;
-          if (nativeSetKeyState) {
-              window._orig_setKeyState_native = nativeSetKeyState;
-              steamClient.Input.ControllerKeyboardSetKeyState = function (key, bPressed) {
-                  if (bPressed === true || bPressed === 1 || bPressed === "1" || bPressed === undefined) {
-                      if (key === 13 ||
-                          key === 28 ||
-                          key === "13" ||
-                          key === "28" ||
-                          key === "Enter" ||
-                          key === "Return" ||
-                          key === "\n" ||
-                          key === "\r") {
-                          handleIncomingInput("Enter", serverApi);
-                      }
-                      else if (key === 8 ||
-                          key === 14 ||
-                          key === "8" ||
-                          key === "14" ||
-                          key === "Backspace" ||
-                          key === "\x08") {
-                          handleIncomingInput("Backspace", serverApi);
-                      }
-                      else if (key === 27 || key === 1 || key === "Escape" || key === "Esc") {
-                          handleIncomingInput("Escape", serverApi);
-                      }
-                      else if (key === 9 || key === 15 || key === "Tab") {
-                          handleIncomingInput("Tab", serverApi);
-                      }
-                  }
-              };
-              console.log("[Alt_Shift] Hooked ControllerKeyboardSetKeyState.");
-          }
-          // 3. ControllerKeyboardSubmit (L2 / Done / Submit button)
-          const nativeSubmit = window._orig_submit_native || steamClient.Input.ControllerKeyboardSubmit;
-          if (nativeSubmit) {
-              window._orig_submit_native = nativeSubmit;
-              steamClient.Input.ControllerKeyboardSubmit = function () {
-                  handleIncomingInput("Enter", serverApi);
                   try {
-                      return nativeSubmit.apply(this, arguments);
+                      let active = document.activeElement;
+                      while (active && active.shadowRoot && active.shadowRoot.activeElement) {
+                          active = active.shadowRoot.activeElement;
+                      }
+                      const isInput = active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable);
+                      if (isInput) {
+                          if (text === "\x02" || text === "\x08" || text === "Backspace") {
+                              document.execCommand("delete", false, undefined);
+                          }
+                          else if (text === "\r" || text === "\n" || text === "\x03" || text === "Enter") {
+                              const enterEvt = new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true });
+                              active.dispatchEvent(enterEvt);
+                          }
+                          else if (text && text.length > 0 && text.charCodeAt(0) >= 32) {
+                              document.execCommand("insertText", false, text);
+                          }
+                      }
+                      else {
+                          serverApi.callPluginMethod("send_key", { text });
+                      }
                   }
-                  catch (e) { }
+                  catch (err) {
+                      console.error("[Alt_Shift_Universal] sendText error:", err);
+                      serverApi.callPluginMethod("send_key", { text });
+                  }
               };
-              console.log("[Alt_Shift] Hooked ControllerKeyboardSubmit.");
-          }
-          // 4. ControllerKeyboardSendKey (integer / string keycodes)
-          const nativeSendKey = window._orig_sendKey_native || steamClient.Input.ControllerKeyboardSendKey;
-          if (nativeSendKey) {
-              window._orig_sendKey_native = nativeSendKey;
-              steamClient.Input.ControllerKeyboardSendKey = function (key) {
-                  if (key === 13 || key === 28 || key === "Enter" || key === "\n" || key === "\r") {
-                      handleIncomingInput("Enter", serverApi);
-                  }
-                  else if (key === 8 || key === 14 || key === "Backspace") {
-                      handleIncomingInput("Backspace", serverApi);
-                  }
-                  else {
-                      handleIncomingInput(String(key), serverApi);
-                  }
-              };
-              console.log("[Alt_Shift] Hooked ControllerKeyboardSendKey.");
+              console.log("[Alt_Shift_Universal] Installed KeyboardSendText hook successfully.");
           }
       }
       catch (e) {
-          console.error("[Alt_Shift] Hook installation failed:", e);
+          console.error("[Alt_Shift_Universal] Hook installation failed:", e);
       }
   }
   function uninstallHook() {
       try {
           const steamClient = window.SteamClient;
-          if (steamClient?.Input) {
-              if (window._orig_sendText_native) {
-                  steamClient.Input.ControllerKeyboardSendText = window._orig_sendText_native;
-              }
-              if (window._orig_setKeyState_native) {
-                  steamClient.Input.ControllerKeyboardSetKeyState = window._orig_setKeyState_native;
-              }
-              if (window._orig_submit_native) {
-                  steamClient.Input.ControllerKeyboardSubmit = window._orig_submit_native;
-              }
-              if (window._orig_sendKey_native) {
-                  steamClient.Input.ControllerKeyboardSendKey = window._orig_sendKey_native;
-              }
-              console.log("[Alt_Shift] Uninstalled hooks.");
+          if (window._orig_sendText_native && steamClient?.Input) {
+              steamClient.Input.ControllerKeyboardSendText = window._orig_sendText_native;
+              console.log("[Alt_Shift_Universal] Uninstalled hook.");
           }
       }
       catch (e) {
-          console.error("[Alt_Shift] Uninstall error:", e);
+          console.error("[Alt_Shift_Universal] Uninstall error:", e);
       }
   }
   const Content = () => {
       return (React__default["default"].createElement(deckyFrontendLib.PanelSection, null,
           React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-              React__default["default"].createElement("div", { style: { lineHeight: "1.45", color: "#dcdedf", fontSize: "0.95em", padding: "4px 0" } }, "\u041F\u043B\u0430\u0433\u0438\u043D \u043F\u0435\u0440\u0435\u0445\u0432\u0430\u0442\u044B\u0432\u0430\u0435\u0442 \u0432\u0432\u043E\u0434 \u044D\u043A\u0440\u0430\u043D\u043D\u043E\u0439 \u043A\u043B\u0430\u0432\u0438\u0430\u0442\u0443\u0440\u044B \u0438 \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u0443\u0435\u0442 \u0440\u0430\u0441\u043A\u043B\u0430\u0434\u043A\u0443 \u0432 Wayland \u0438 Game Mode.")),
+              React__default["default"].createElement("div", { style: { lineHeight: "1.45", color: "#dcdedf", fontSize: "0.95em", padding: "4px 0" } }, "\u0423\u043D\u0438\u0432\u0435\u0440\u0441\u0430\u043B\u044C\u043D\u044B\u0439 \u0432\u0432\u043E\u0434 \u044D\u043A\u0440\u0430\u043D\u043D\u043E\u0439 \u043A\u043B\u0430\u0432\u0438\u0430\u0442\u0443\u0440\u044B (OSK) \u0434\u043B\u044F \u043B\u044E\u0431\u044B\u0445 \u0440\u0430\u0441\u043A\u043B\u0430\u0434\u043E\u043A Steam.")),
           React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
-              React__default["default"].createElement("div", { style: { fontSize: "0.85em", color: "#8f98a0", marginTop: "12px", lineHeight: "1.4" } }, "\u0412\u044B \u043C\u043E\u0436\u0435\u0442\u0435 \u0441\u043A\u0440\u044B\u0442\u044C \u043F\u043B\u0430\u0433\u0438\u043D \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 Decky Loader, \u043E\u043D \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442 \u0440\u0430\u0431\u043E\u0442\u0430\u0442\u044C \u0432 \u0444\u043E\u043D\u0435."))));
+              React__default["default"].createElement("div", { style: { display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85em", color: "#a1cd44", marginTop: "4px" } },
+                  React__default["default"].createElement(CheckIcon, null),
+                  React__default["default"].createElement("span", null, "\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F \u0432\u0432\u043E\u0434\u0430 \u0430\u043A\u0442\u0438\u0432\u043D\u0430"))),
+          React__default["default"].createElement(deckyFrontendLib.PanelSectionRow, null,
+              React__default["default"].createElement("div", { style: { fontSize: "0.8em", color: "#8f98a0", marginTop: "12px", lineHeight: "1.4" } }, "\u041F\u043B\u0430\u0433\u0438\u043D \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u0441\u043E\u0433\u043B\u0430\u0441\u0443\u0435\u0442 \u0441\u0438\u043C\u0432\u043E\u043B\u044B \u044D\u043A\u0440\u0430\u043D\u043D\u043E\u0439 \u043A\u043B\u0430\u0432\u0438\u0430\u0442\u0443\u0440\u044B Steam \u0441 \u0441\u0438\u0441\u0442\u0435\u043C\u043E\u0439 \u0438 \u0438\u0433\u0440\u0430\u043C\u0438."))));
   };
   var index = deckyFrontendLib.definePlugin((serverApi) => {
       installHook(serverApi);
       return {
-          title: React__default["default"].createElement("div", { className: deckyFrontendLib.staticClasses.Title }, "Alt_Shift"),
+          title: React__default["default"].createElement("div", { className: deckyFrontendLib.staticClasses.Title }, "Alt_Shift Universal"),
           content: React__default["default"].createElement(Content, null),
-          icon: React__default["default"].createElement(FaKeyboard, null),
+          icon: React__default["default"].createElement(KeyboardIcon, null),
           onDismount() {
               uninstallHook();
           },
