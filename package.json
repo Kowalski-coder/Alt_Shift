@@ -1,6 +1,6 @@
 {
   "name": "alt-shift",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Fixes Steam On-Screen Keyboard input on Wayland and Game Mode",
   "scripts": {
     "build": "shx rm -rf dist && rollup -c && node -e \"const fs = require('fs'); let c = fs.readFileSync('dist/index.js', 'utf8'); if (c.startsWith('var ')) { fs.writeFileSync('dist/index.js', c.replace(/^var \\w+ =\\s*/, '')); }\"",
