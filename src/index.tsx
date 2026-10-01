@@ -8,6 +8,8 @@ import {
 import React, { VFC } from "react";
 import { FaKeyboard } from "react-icons/fa";
 
+const KeyboardIcon: any = FaKeyboard;
+
 function handleIncomingInput(text: string, serverApi: ServerAPI) {
   try {
     if (text === undefined || text === null || text === "") return;
@@ -171,7 +173,7 @@ export default definePlugin((serverApi: ServerAPI) => {
   return {
     title: <div className={staticClasses.Title}>Alt_Shift</div>,
     content: <Content />,
-    icon: <FaKeyboard />,
+    icon: <KeyboardIcon />,
     onDismount() {
       uninstallHook();
     },

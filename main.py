@@ -1,4 +1,3 @@
-import asyncio
 import ctypes
 import fcntl
 import os
@@ -103,6 +102,7 @@ KEY_LEFT = 105
 KEY_RIGHT = 106
 KEY_DOWN = 108
 
+# Character to (Linux Keycode, ShiftRequired) mapping
 CHAR_TO_EVDEV = {
     # Lowercase Latin
     'a': (KEY_A, False), 'b': (KEY_B, False), 'c': (KEY_C, False),
@@ -132,7 +132,7 @@ CHAR_TO_EVDEV = {
     '7': (KEY_7, False), '8': (KEY_8, False), '9': (KEY_9, False),
     '0': (KEY_0, False),
 
-    # Special / Symbols
+    # Common ASCII Symbols
     ' ': (KEY_SPACE, False),
     '-': (KEY_MINUS, False), '_': (KEY_MINUS, True),
     '=': (KEY_EQUAL, False), '+': (KEY_EQUAL, True),
@@ -150,6 +150,7 @@ CHAR_TO_EVDEV = {
     ')': (KEY_0, True), '\\': (KEY_BACKSLASH, False), '|': (KEY_BACKSLASH, True),
 }
 
+# Russian Cyrillic to (Linux Keycode, ShiftRequired) mapping
 RU_TO_EVDEV = {
     'й': (KEY_Q, False), 'Й': (KEY_Q, True),
     'ц': (KEY_W, False), 'Ц': (KEY_W, True),
@@ -186,6 +187,7 @@ RU_TO_EVDEV = {
     'ё': (KEY_GRAVE, False), 'Ё': (KEY_GRAVE, True),
 }
 
+# Cyrillic layout specific punctuation
 RU_SYMBOLS = {
     '.': (KEY_SLASH, False),
     ',': (KEY_SLASH, True),
@@ -207,6 +209,7 @@ RU_SYMBOLS = {
     '\\': (KEY_BACKSLASH, False),
 }
 
+# Virtual & control key identifiers
 SPECIAL_KEYS = {
     'Backspace': KEY_BACKSPACE,
     'Delete': KEY_BACKSPACE,
@@ -248,7 +251,9 @@ last_key_text = None
 kde_ru_idx = 1
 kde_us_idx = 0
 
+
 def detect_kde_layout_indices():
+    """Dynamically detects the layout indexes for 'us' and 'ru' in KDE Plasma."""
     global kde_ru_idx, kde_us_idx
     try:
         ok, out = call_kde_dbus("getLayoutsList")
@@ -263,7 +268,9 @@ def detect_kde_layout_indices():
     except Exception as e:
         logger.debug(f"detect_kde_layout_indices error: {e}")
 
+
 def get_user_info():
+    """Retrieves current session username, UID, GID, and home directory."""
     username = os.environ.get("DECKY_USER")
     if not username:
         try:
@@ -302,7 +309,9 @@ def get_user_info():
     except Exception:
         return username, 1000, 1000, f"/home/{username}"
 
+
 def call_kde_dbus(member: str, sig: str = "", arg: str = ""):
+    """Executes a D-Bus method call to KDE KeyboardLayouts service."""
     username, uid, gid, homedir = get_user_info()
     bus_path = f"/run/user/{uid}/bus"
     if not os.path.exists(bus_path):
@@ -349,7 +358,9 @@ def call_kde_dbus(member: str, sig: str = "", arg: str = ""):
 
     return False, ""
 
+
 def auto_setup_system_xkb():
+    """Ensures XKB layouts (us,ru) and options are registered for the session."""
     try:
         username, uid, gid, homedir = get_user_info()
 
@@ -386,8 +397,6 @@ def auto_setup_system_xkb():
                                     new_lines.append(f"LayoutList={','.join(layouts)}")
                                 elif l.startswith("Use="):
                                     new_lines.append("Use=true")
-                                elif l.startswith("ShowLayoutIndicator="):
-                                    new_lines.append("ShowLayoutIndicator=false")
                                 else:
                                     new_lines.append(l)
                             kxkb_content = "\n".join(new_lines) + "\n"
@@ -418,25 +427,36 @@ def auto_setup_system_xkb():
             subprocess.run(["setxkbmap", "-layout", "us,ru", "-option", "grp:alt_shift_toggle"], **kwargs)
             subprocess.run(["busctl", "--user", "call", "org.kde.KWin", "/KWin", "org.kde.KWin", "reconfigure"], **kwargs)
             subprocess.run(["busctl", "--user", "call", "org.kde.kded6", "/kded", "org.kde.kded6", "reconfigure"], **kwargs)
-            subprocess.run(["busctl", "--user", "call", "org.kde.kded5", "/kded", "org.kde.kded5", "reconfigure"], **kwargs)
         except Exception:
             pass
 
     except Exception as e:
         logger.warning(f"Could not auto-setup XKB: {e}")
 
+
 def sync_layout(target_layout: int):
+    """Synchronizes keyboard layout between OSK and the active Wayland compositor."""
     global current_cached_kde_layout, gamescope_active_layout
 
     # 1. Desktop Mode (KDE Plasma DBus)
     detect_kde_layout_indices()
     kde_target = kde_ru_idx if target_layout == 1 else kde_us_idx
-    ok, out = call_kde_dbus("setLayout", "u", str(kde_target))
+    if current_cached_kde_layout == -1:
+        ok, out = call_kde_dbus("getLayout")
+        if ok and out:
+            try:
+                current_cached_kde_layout = int(out.split()[-1])
+            except Exception:
+                pass
+
+    if current_cached_kde_layout == kde_target:
+        return
+
+    ok, _ = call_kde_dbus("setLayout", "u", str(kde_target))
     if ok:
-        if current_cached_kde_layout != kde_target:
-            current_cached_kde_layout = kde_target
-            time.sleep(0.035)
-            logger.info(f"Switched KDE layout to index {kde_target} (target={'RU' if target_layout==1 else 'US'})")
+        current_cached_kde_layout = kde_target
+        time.sleep(0.02)
+        logger.info(f"Switched KDE layout to index {kde_target} (target={'RU' if target_layout==1 else 'US'})")
         return
 
     # 2. Game Mode (Gamescope Wayland)
@@ -452,7 +472,9 @@ def sync_layout(target_layout: int):
         gamescope_active_layout = target_layout
         logger.info(f"Toggled Gamescope layout to {target_layout}")
 
+
 def init_uinput_device():
+    """Initializes the virtual Linux uinput keyboard device."""
     global uinput_fd
     if uinput_fd >= 0:
         return
@@ -472,11 +494,13 @@ def init_uinput_device():
         fcntl.ioctl(fd, UI_DEV_SETUP, setup)
         fcntl.ioctl(fd, UI_DEV_CREATE)
         uinput_fd = fd
-        logger.info("Pure ctypes UInput device initialized successfully.")
+        logger.info("UInput virtual keyboard initialized.")
     except Exception as e:
         logger.error(f"Failed to create UInput device: {e}")
 
+
 def destroy_uinput_device():
+    """Closes and unregisters the virtual uinput keyboard device."""
     global uinput_fd
     if uinput_fd >= 0:
         try:
@@ -486,7 +510,9 @@ def destroy_uinput_device():
             pass
         uinput_fd = -1
 
+
 def emit_raw_event(type_, code, val):
+    """Writes an evdev input_event struct into the uinput file descriptor."""
     global uinput_fd
     if uinput_fd < 0:
         init_uinput_device()
@@ -498,7 +524,9 @@ def emit_raw_event(type_, code, val):
     data = struct.pack("qqHHi", sec, usec, type_, code, val)
     os.write(uinput_fd, data)
 
+
 def emit_keypress(keycode: int, shift: bool = False):
+    """Emits key down and key up events with optional Shift modifier."""
     if shift:
         emit_raw_event(EV_KEY, KEY_LEFTSHIFT, 1)
         emit_raw_event(EV_SYN, SYN_REPORT, 0)
@@ -518,6 +546,7 @@ def emit_keypress(keycode: int, shift: bool = False):
 
 class Plugin:
     async def send_key(self, text: str = ""):
+        """Decky RPC endpoint to receive intercepted text from frontend and emit evdev events."""
         global last_key_time, last_key_text
         if text is None or text == "":
             return {"success": False}

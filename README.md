@@ -23,27 +23,27 @@ Steam's native on-screen keyboard engine (`steamui.so`) emulates keystrokes usin
 In modern Wayland sessions:
 1. **Input blocked in native Wayland windows:** Wayland compositors (KWin Wayland, Gamescope) isolate client windows from synthetic XTest events, causing the OSK to fail to type or output unwanted numbers (`'1'`) instead of characters.
 2. **Missing secondary layouts in X11/XKB:** Attempting to type non-Latin/Cyrillic characters causes `XKeysymToKeycode` failures resulting in keycode 2 (`KEY_1`).
-3. **Double / Triple typing:** Naive injection attempts often result in duplicate or triplicate key presses per touch.
+3. **Double / Triple typing:** Standard text forwarding methods often result in duplicate or triplicate key presses per touch.
 4. **Layout desynchronization:** Toggling language layouts on the virtual keyboard does not propagate to the system compositor.
 
 ---
 
 ## ✨ Features
 
-- ⌨️ **Kernel-level hardware input via Linux `/dev/uinput`:** Direct keystroke injection through virtual kernel input device (`evdev`). Compatible with all Wayland and XWayland windows, games, and terminals.
+- ⌨️ **Kernel-level hardware input via Linux `/dev/uinput`:** Direct keystroke injection through virtual kernel input device (`evdev`). Compatible with all Wayland and XWayland windows, games, browsers, and terminals.
 - 🎯 **Clean single-strike input:** Intercepts `SteamClient.Input.ControllerKeyboardSendText` in Steam CEF to prevent character duplication.
 - 🔄 **Dynamic layout synchronization:**
   - **Desktop Mode (KDE Plasma):** Instantaneous layout switching via D-Bus (`org.kde.keyboard /Layouts`) with dynamic layout index discovery.
   - **Game Mode (Gamescope):** Automatic layout synchronization upon character input.
 - 🇷🇺 **Comprehensive Cyrillic support:** Correct input for all Cyrillic letters (uppercase and lowercase), punctuation, digits, and special keys (`Backspace`, `Enter`, `Tab`, arrows, `Escape`).
-- ⚡ **Zero-Reboot Setup:** Automatically initializes system XKB environment and KDE daemon states on startup — no console reboot required after installation.
-- 🎛 **Minimalist footprint:** No cluttered UI in Quick Access Menu (QAM). Can be hidden in Decky Loader settings while continuing to run in the background.
+- ⚡ **Zero-Reboot Setup:** Automatically initializes system XKB environment and KDE daemon states on startup — no manual console commands or reboots required after installation.
+- 🎛 **Minimalist footprint:** Clean and lightweight UI in Quick Access Menu (QAM). Can be hidden in Decky Loader settings while continuing to run in the background.
 
 ---
 
 ## 📦 Installation
 
-1. Download the release archive **`Alt_Shift.zip`** from **[GitHub Releases](https://github.com/Kowalski-coder/Alt_Shift/releases)**.
+1. Download the release archive **`Alt_Shift.zip`** from **[GitHub Releases](https://github.com/Kowalski-coder/Alt_Shift/releases)** or **[GitFlic](https://gitflic.ru/)**.
 2. On your Steam Deck, open the **Decky Loader** menu (`...` button).
 3. Click the **Gear icon** (Decky Loader Settings) -> **Developer** tab.
 4. Select **"Install plugin from ZIP"** and choose the downloaded `Alt_Shift.zip`.
