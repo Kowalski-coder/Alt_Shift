@@ -243,6 +243,16 @@ SPECIAL_KEYS = {
     '\x07': KEY_DOWN,
 }
 
+# Session mode constants
+SESSION_UNKNOWN = 0
+SESSION_DESKTOP = 1    # KDE Plasma (kwin_wayland)
+SESSION_GAMEMODE = 2   # Gamescope
+
+current_session_mode = SESSION_UNKNOWN
+last_session_check_time = 0.0
+last_gamescope_pid = None
+last_kwin_pid = None
+
 uinput_fd = -1
 current_cached_kde_layout = -1
 gamescope_active_layout = 0  # 0: US, 1: RU
@@ -250,6 +260,62 @@ last_key_time = 0
 last_key_text = None
 kde_ru_idx = 1
 kde_us_idx = 0
+
+
+def update_session_state(force: bool = False):
+    """Detects whether the system is in Desktop Mode (KDE) or Game Mode (Gamescope),
+    and synchronizes/resets internal layout trackers on mode transitions.
+    """
+    global current_session_mode, last_session_check_time
+    global last_gamescope_pid, last_kwin_pid
+    global current_cached_kde_layout, gamescope_active_layout
+
+    now = time.time()
+    if not force and (now - last_session_check_time) < 0.5 and current_session_mode != SESSION_UNKNOWN:
+        return current_session_mode
+
+    last_session_check_time = now
+
+    gamescope_pid = None
+    kwin_pid = None
+
+    try:
+        for entry in os.scandir('/proc'):
+            if entry.is_dir() and entry.name.isdigit():
+                try:
+                    with open(f'/proc/{entry.name}/comm', 'r') as f:
+                        comm = f.read().strip()
+                        if comm == 'gamescope':
+                            gamescope_pid = int(entry.name)
+                        elif comm == 'kwin_wayland':
+                            kwin_pid = int(entry.name)
+                except (IOError, FileNotFoundError):
+                    continue
+    except Exception as e:
+        logger.debug(f"Session detection error: {e}")
+
+    new_mode = SESSION_GAMEMODE if gamescope_pid is not None else (
+        SESSION_DESKTOP if kwin_pid is not None else SESSION_UNKNOWN
+    )
+
+    if new_mode == SESSION_GAMEMODE:
+        # Check if we transitioned from Desktop to Game Mode, or Gamescope restarted
+        if current_session_mode != SESSION_GAMEMODE or (gamescope_pid and gamescope_pid != last_gamescope_pid):
+            logger.info(f"Session switched to Game Mode (Gamescope PID: {gamescope_pid}). Resetting layout state to 0 (US).")
+            gamescope_active_layout = 0  # Gamescope initializes input devices in group 0 (US)
+            current_cached_kde_layout = -1
+            last_gamescope_pid = gamescope_pid
+    elif new_mode == SESSION_DESKTOP:
+        # Check if we transitioned from Game Mode to Desktop Mode, or KWin restarted
+        if current_session_mode != SESSION_DESKTOP or (kwin_pid and kwin_pid != last_kwin_pid):
+            logger.info(f"Session switched to Desktop Mode (KWin PID: {kwin_pid}). Resetting KDE layout state.")
+            current_cached_kde_layout = -1
+            gamescope_active_layout = 0
+            last_kwin_pid = kwin_pid
+            detect_kde_layout_indices()
+
+    current_session_mode = new_mode
+    return current_session_mode
 
 
 def detect_kde_layout_indices():
@@ -435,31 +501,34 @@ def auto_setup_system_xkb():
 
 
 def sync_layout(target_layout: int):
-    """Synchronizes keyboard layout between OSK and the active Wayland compositor."""
+    """Synchronizes keyboard layout between OSK and the active compositor (Desktop or Game Mode)."""
     global current_cached_kde_layout, gamescope_active_layout
 
-    # 1. Desktop Mode (KDE Plasma DBus)
-    detect_kde_layout_indices()
-    kde_target = kde_ru_idx if target_layout == 1 else kde_us_idx
-    if current_cached_kde_layout == -1:
-        ok, out = call_kde_dbus("getLayout")
-        if ok and out:
-            try:
-                current_cached_kde_layout = int(out.split()[-1])
-            except Exception:
-                pass
+    mode = update_session_state()
 
-    if current_cached_kde_layout == kde_target:
+    # 1. Desktop Mode (KDE Plasma D-Bus)
+    if mode == SESSION_DESKTOP:
+        detect_kde_layout_indices()
+        kde_target = kde_ru_idx if target_layout == 1 else kde_us_idx
+        if current_cached_kde_layout == -1:
+            ok, out = call_kde_dbus("getLayout")
+            if ok and out:
+                try:
+                    current_cached_kde_layout = int(out.split()[-1])
+                except Exception:
+                    pass
+
+        if current_cached_kde_layout == kde_target:
+            return
+
+        ok, _ = call_kde_dbus("setLayout", "u", str(kde_target))
+        if ok:
+            current_cached_kde_layout = kde_target
+            time.sleep(0.02)
+            logger.info(f"Switched KDE layout to index {kde_target} (target={'RU' if target_layout==1 else 'US'})")
         return
 
-    ok, _ = call_kde_dbus("setLayout", "u", str(kde_target))
-    if ok:
-        current_cached_kde_layout = kde_target
-        time.sleep(0.02)
-        logger.info(f"Switched KDE layout to index {kde_target} (target={'RU' if target_layout==1 else 'US'})")
-        return
-
-    # 2. Game Mode (Gamescope Wayland)
+    # 2. Game Mode (Gamescope Wayland) or fallback
     if gamescope_active_layout != target_layout:
         emit_raw_event(EV_KEY, KEY_LEFTALT, 1)
         emit_raw_event(EV_KEY, KEY_LEFTSHIFT, 1)
@@ -470,7 +539,7 @@ def sync_layout(target_layout: int):
         emit_raw_event(EV_SYN, SYN_REPORT, 0)
         time.sleep(0.02)
         gamescope_active_layout = target_layout
-        logger.info(f"Toggled Gamescope layout to {target_layout}")
+        logger.info(f"Toggled Gamescope layout to {target_layout} (Alt+Shift)")
 
 
 def init_uinput_device():
@@ -512,7 +581,7 @@ def destroy_uinput_device():
 
 
 def emit_raw_event(type_, code, val):
-    """Writes an evdev input_event struct into the uinput file descriptor."""
+    """Writes an evdev input_event struct into the uinput file descriptor with self-healing."""
     global uinput_fd
     if uinput_fd < 0:
         init_uinput_device()
@@ -522,7 +591,17 @@ def emit_raw_event(type_, code, val):
     sec = int(t)
     usec = int((t - sec) * 1_000_000)
     data = struct.pack("qqHHi", sec, usec, type_, code, val)
-    os.write(uinput_fd, data)
+    try:
+        os.write(uinput_fd, data)
+    except OSError as e:
+        logger.warning(f"Error writing to uinput ({e}), re-initializing device...")
+        destroy_uinput_device()
+        init_uinput_device()
+        if uinput_fd >= 0:
+            try:
+                os.write(uinput_fd, data)
+            except OSError:
+                pass
 
 
 def emit_keypress(keycode: int, shift: bool = False):
@@ -585,7 +664,7 @@ class Plugin:
                 sync_layout(0)
                 keycode, shift = CHAR_TO_EVDEV[ch]
                 emit_keypress(keycode, shift)
-            elif current_cached_kde_layout == kde_ru_idx and ch in RU_SYMBOLS:
+            elif ch in RU_SYMBOLS:
                 sync_layout(1)
                 keycode, shift = RU_SYMBOLS[ch]
                 emit_keypress(keycode, shift)
@@ -596,7 +675,7 @@ class Plugin:
     async def _main(self):
         auto_setup_system_xkb()
         init_uinput_device()
-        detect_kde_layout_indices()
+        update_session_state(force=True)
         logger.info("Alt_Shift plugin backend loaded cleanly.")
 
     async def _unload(self):
